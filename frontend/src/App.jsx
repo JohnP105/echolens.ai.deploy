@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Container, Box, Typography, Paper } from '@mui/material';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 
 // Import components
 import Header from './components/Header';
@@ -60,6 +61,28 @@ const theme = createTheme({
   },
 });
 
+// Layout component with AnimatePresence
+const AnimatedRoutes = ({ emotionalState, updateEmotionalState }) => {
+  const location = useLocation();
+  
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={<Dashboard emotionalState={emotionalState} />} />
+        <Route
+          path="/analysis"
+          element={<EmotionAnalysis updateEmotionalState={updateEmotionalState} />}
+        />
+        <Route
+          path="/chat"
+          element={<ChatInterface emotionalState={emotionalState} />}
+        />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </AnimatePresence>
+  );
+};
+
 function App() {
   const [emotionalState, setEmotionalState] = useState({
     emotion: 'neutral',
@@ -84,18 +107,10 @@ function App() {
         >
           <Header emotionalState={emotionalState} />
           <Container component="main" sx={{ mt: 4, mb: 4, flex: 1 }}>
-            <Routes>
-              <Route path="/" element={<Dashboard emotionalState={emotionalState} />} />
-              <Route
-                path="/analysis"
-                element={<EmotionAnalysis updateEmotionalState={updateEmotionalState} />}
-              />
-              <Route
-                path="/chat"
-                element={<ChatInterface emotionalState={emotionalState} />}
-              />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
+            <AnimatedRoutes 
+              emotionalState={emotionalState} 
+              updateEmotionalState={updateEmotionalState} 
+            />
           </Container>
           <Footer />
         </Box>

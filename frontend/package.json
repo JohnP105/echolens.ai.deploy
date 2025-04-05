@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@emotion/react": "^11.11.0",
-    "@emotion/styled": "^11.11.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^5.11.16",
     "@mui/material": "^5.13.0",
     "axios": "^1.4.0",
+    "framer-motion": "^12.6.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.11.1",
@@ -38,4 +39,4 @@
       "last 1 safari version"
     ]
   }
-} 
+}

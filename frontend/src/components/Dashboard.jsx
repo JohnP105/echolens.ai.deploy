@@ -11,6 +11,7 @@ import {
   Divider
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
 // Icons
 import VideocamIcon from '@mui/icons-material/Videocam';
@@ -18,6 +19,46 @@ import ChatIcon from '@mui/icons-material/Chat';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
 import SettingsIcon from '@mui/icons-material/Settings';
+
+// Animated MUI components
+const MotionPaper = motion(Paper);
+const MotionBox = motion(Box);
+const MotionCard = motion(Card);
+const MotionTypography = motion(Typography);
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { 
+    opacity: 1,
+    transition: { 
+      staggerChildren: 0.1,
+      delayChildren: 0.2
+    }
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.3 }
+  }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: { 
+    y: 0, 
+    opacity: 1,
+    transition: { type: 'spring', stiffness: 100 }
+  }
+};
+
+const pulseAnimation = {
+  scale: [1, 1.05, 1],
+  transition: { 
+    duration: 2, 
+    repeat: Infinity,
+    repeatType: "reverse" 
+  }
+};
 
 const Dashboard = ({ emotionalState }) => {
   const navigate = useNavigate();
@@ -45,39 +86,96 @@ const Dashboard = ({ emotionalState }) => {
   ];
 
   return (
-    <Box>
-      <Paper 
+    <MotionBox
+      component={motion.div}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+    >
+      <MotionPaper 
+        component={motion.div}
+        variants={itemVariants}
         elevation={0}
         sx={{ 
           p: 4, 
           mb: 4, 
           borderRadius: 4,
           background: 'linear-gradient(120deg, #2196f3 0%, #21cbf3 100%)',
-          color: 'white'
+          color: 'white',
+          overflow: 'hidden',
+          position: 'relative'
         }}
       >
+        <MotionBox
+          component={motion.div}
+          sx={{
+            position: 'absolute',
+            top: -100,
+            right: -100,
+            width: 300,
+            height: 300,
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.1)',
+          }}
+          animate={{
+            x: [0, 10, 0],
+            y: [0, 15, 0],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            repeatType: "reverse"
+          }}
+        />
+        
         <Grid container spacing={3} alignItems="center">
           <Grid item xs={12} md={8}>
-            <Typography variant="h3" gutterBottom fontWeight="bold">
+            <MotionTypography 
+              variant="h3" 
+              gutterBottom 
+              fontWeight="bold"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
               Welcome to RoboMind
-            </Typography>
-            <Typography variant="h5">
+            </MotionTypography>
+            <MotionTypography 
+              variant="h5"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
               Your Emotion-Aware Companion Robot
-            </Typography>
-            <Typography variant="body1" sx={{ mt: 2 }}>
+            </MotionTypography>
+            <MotionTypography 
+              variant="body1" 
+              sx={{ mt: 2 }}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+            >
               RoboMind uses AI to detect your emotional state and provides mental health support tailored to your needs.
               Start by trying out the emotion analysis with your webcam or simply chat with the robot.
-            </Typography>
+            </MotionTypography>
           </Grid>
           <Grid item xs={12} md={4} sx={{ textAlign: 'center' }}>
-            <SmartToyIcon sx={{ fontSize: 160, opacity: 0.9 }} />
+            <MotionBox
+              component={motion.div}
+              animate={pulseAnimation}
+            >
+              <SmartToyIcon sx={{ fontSize: 160, opacity: 0.9 }} />
+            </MotionBox>
           </Grid>
         </Grid>
-      </Paper>
+      </MotionPaper>
 
       {/* Current emotional state */}
       {emotionalState && emotionalState.emotion !== 'neutral' && (
-        <Paper 
+        <MotionPaper 
+          component={motion.div}
+          variants={itemVariants}
           elevation={3} 
           sx={{ 
             p: 3, 
@@ -87,6 +185,8 @@ const Dashboard = ({ emotionalState }) => {
             borderColor: 'primary.light',
             bgcolor: 'background.paper'
           }}
+          whileHover={{ scale: 1.01 }}
+          transition={{ type: "spring", stiffness: 400, damping: 17 }}
         >
           <Typography variant="h6" gutterBottom>
             Current Emotional State
@@ -97,41 +197,59 @@ const Dashboard = ({ emotionalState }) => {
               " That's wonderful! Would you like to explore activities that can sustain this positive feeling?" :
               " Would you like some suggestions to help with this emotion?"}
           </Typography>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            sx={{ mt: 2 }}
-            onClick={() => navigate('/chat')}
+          <MotionBox
+            component={motion.div}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
-            Get Support
-          </Button>
-        </Paper>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              sx={{ mt: 2 }}
+              onClick={() => navigate('/chat')}
+            >
+              Get Support
+            </Button>
+          </MotionBox>
+        </MotionPaper>
       )}
 
       {/* Quick actions */}
-      <Typography variant="h4" gutterBottom sx={{ mt: 4, mb: 3 }}>
+      <MotionTypography 
+        component={motion.div}
+        variants={itemVariants}
+        variant="h4" 
+        gutterBottom 
+        sx={{ mt: 4, mb: 3 }}
+      >
         Quick Actions
-      </Typography>
+      </MotionTypography>
       <Grid container spacing={3}>
         {quickActions.map((action, index) => (
           <Grid item xs={12} sm={6} md={4} key={index}>
-            <Card 
+            <MotionCard 
+              component={motion.div}
+              variants={itemVariants}
               elevation={2} 
               sx={{ 
                 height: '100%', 
                 display: 'flex', 
                 flexDirection: 'column',
-                transition: 'transform 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 6
-                }
               }}
+              whileHover={{ 
+                scale: 1.05,
+                boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.1)"
+              }}
+              whileTap={{ scale: 0.98 }}
             >
               <CardContent sx={{ flexGrow: 1 }}>
-                <Box sx={{ textAlign: 'center', mb: 2 }}>
+                <MotionBox 
+                  sx={{ textAlign: 'center', mb: 2 }}
+                  whileHover={{ rotate: [0, -10, 10, -10, 0] }}
+                  transition={{ duration: 0.5 }}
+                >
                   {action.icon}
-                </Box>
+                </MotionBox>
                 <Typography variant="h6" component="h2" gutterBottom>
                   {action.title}
                 </Typography>
@@ -149,13 +267,19 @@ const Dashboard = ({ emotionalState }) => {
                   Open
                 </Button>
               </CardActions>
-            </Card>
+            </MotionCard>
           </Grid>
         ))}
       </Grid>
 
       {/* About section */}
-      <Paper elevation={2} sx={{ p: 3, mt: 4, borderRadius: 2 }}>
+      <MotionPaper 
+        component={motion.div}
+        variants={itemVariants}
+        elevation={2} 
+        sx={{ p: 3, mt: 4, borderRadius: 2 }}
+        whileHover={{ boxShadow: "0px 8px 25px rgba(0, 0, 0, 0.08)" }}
+      >
         <Typography variant="h5" gutterBottom>
           About RoboMind
         </Typography>
@@ -178,14 +302,23 @@ const Dashboard = ({ emotionalState }) => {
             </Typography>
           </Grid>
         </Grid>
-        <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+        <MotionBox 
+          component={motion.div}
+          sx={{ display: 'flex', alignItems: 'center', mt: 2 }}
+          initial={{ opacity: 0.8 }}
+          whileHover={{ 
+            opacity: 1,
+            x: 5,
+            transition: { duration: 0.2 }
+          }}
+        >
           <AccessibilityNewIcon color="primary" sx={{ mr: 1 }} />
           <Typography variant="body2" color="text.secondary">
             RoboMind is designed to be accessible to users of all abilities.
           </Typography>
-        </Box>
-      </Paper>
-    </Box>
+        </MotionBox>
+      </MotionPaper>
+    </MotionBox>
   );
 };
 

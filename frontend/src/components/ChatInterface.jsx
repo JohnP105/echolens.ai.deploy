@@ -14,15 +14,58 @@ import {
   CircularProgress,
   Paper,
   Snackbar,
-  Alert
+  Alert,
+  useTheme
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import MicIcon from '@mui/icons-material/Mic';
 import MicOffIcon from '@mui/icons-material/MicOff';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Motion components
+const MotionBox = motion(Box);
+const MotionPaper = motion(Paper);
+const MotionListItem = motion(ListItem);
+const MotionIconButton = motion(IconButton);
+const MotionTypography = motion(Typography);
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { 
+    opacity: 1,
+    transition: {
+      when: "beforeChildren",
+      staggerChildren: 0.1
+    }
+  },
+  exit: { opacity: 0, transition: { duration: 0.3 } }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: { 
+    y: 0, 
+    opacity: 1,
+    transition: { type: 'spring', stiffness: 50 }
+  }
+};
+
+const messageVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 500 } },
+  exit: { opacity: 0, y: 20, transition: { duration: 0.2 } }
+};
+
+const pulseAnimation = {
+  scale: [1, 1.05, 1],
+  transition: { duration: 1.5, repeat: Infinity }
+};
 
 const ChatInterface = ({ emotionalState }) => {
+  const theme = useTheme();
   const [messages, setMessages] = useState([
     { 
       id: 1, 
@@ -36,6 +79,7 @@ const ChatInterface = ({ emotionalState }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
   
   // Speech recognition setup (if available)
   const [speechRecognition, setSpeechRecognition] = useState(null);
@@ -71,6 +115,13 @@ const ChatInterface = ({ emotionalState }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Focus input field on load
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -225,175 +276,261 @@ const ChatInterface = ({ emotionalState }) => {
     return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
   };
 
-  // Format timestamp
+  // Format time for message timestamps
   const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit'
-    });
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Clear error alert
+  // Close error snackbar
   const handleCloseError = () => {
     setError(null);
   };
 
   return (
-    <Box>
-      <Typography variant="h2" gutterBottom align="center">
-        Chat with RoboMind
-      </Typography>
-      
-      <Typography variant="body1" align="center" gutterBottom color="text.secondary">
-        {emotionalState && emotionalState.emotion && emotionalState.emotion !== 'neutral' ? (
-          `I sense you're feeling ${emotionalState.emotion}. How can I help?`
-        ) : (
-          "Share how you're feeling, and I'll do my best to support you."
-        )}
-      </Typography>
-      
-      <Paper 
-        elevation={3} 
+    <MotionBox
+      component={motion.div}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      sx={{
+        height: '80vh',
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+    >
+      {/* Chat header */}
+      <MotionPaper 
+        component={motion.div}
+        variants={itemVariants}
+        elevation={2} 
         sx={{ 
-          display: 'flex',
-          flexDirection: 'column',
-          height: '60vh',
-          maxHeight: 'calc(100vh - 250px)',
-          mb: 2,
-          overflow: 'hidden'
+          p: 2, 
+          mb: 2, 
+          display: 'flex', 
+          alignItems: 'center',
+          background: 'linear-gradient(90deg, #2196f3 0%, #21CBF3 100%)',
+          color: 'white',
+          borderRadius: '12px'
         }}
       >
-        {/* Chat messages */}
-        <List 
-          sx={{ 
-            flex: 1, 
-            overflow: 'auto',
-            bgcolor: 'background.paper',
-            p: 2
+        <MotionBox
+          animate={{
+            rotate: [0, 10, 0, -10, 0],
+            transition: { duration: 3, repeat: Infinity }
           }}
+          sx={{ mr: 2 }}
         >
-          {messages.map((message, index) => (
-            <React.Fragment key={message.id}>
-              <ListItem
-                alignItems="flex-start"
-                sx={{
-                  textAlign: message.sender === 'user' ? 'right' : 'left',
+          <SmartToyIcon sx={{ fontSize: 32 }} />
+        </MotionBox>
+        <Box>
+          <MotionTypography variant="h6" fontWeight="bold">
+            Chat with RoboMind
+          </MotionTypography>
+          <MotionTypography variant="caption">
+            Your AI Mental Health Companion
+          </MotionTypography>
+        </Box>
+        {emotionalState && emotionalState.emotion !== 'neutral' && (
+          <MotionBox 
+            sx={{ ml: 'auto', mr: 1 }}
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+          >
+            <Typography variant="body2">
+              Current Emotion: <strong>{emotionalState.emotion}</strong>
+            </Typography>
+          </MotionBox>
+        )}
+      </MotionPaper>
+
+      {/* Chat messages */}
+      <MotionPaper 
+        component={motion.div}
+        variants={itemVariants}
+        elevation={3} 
+        sx={{ 
+          p: 2, 
+          flexGrow: 1, 
+          overflowY: 'auto',
+          borderRadius: '12px',
+          bgcolor: 'background.default',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <List sx={{ width: '100%', flexGrow: 1 }}>
+          <AnimatePresence>
+            {messages.map((message) => (
+              <MotionListItem
+                key={message.id}
+                component={motion.li}
+                variants={messageVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                sx={{ 
+                  flexDirection: message.sender === 'user' ? 'row-reverse' : 'row',
+                  alignItems: 'flex-start',
                   mb: 1
                 }}
               >
-                {message.sender === 'bot' && (
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>
-                      <SmartToyIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                )}
-                
-                <ListItemText
-                  primary={
-                    <Paper
-                      elevation={1}
-                      sx={{
-                        p: 2,
-                        display: 'inline-block',
-                        maxWidth: '70%',
-                        bgcolor: message.sender === 'user' 
-                          ? 'primary.light' 
-                          : message.isError 
-                            ? 'error.light' 
-                            : 'grey.100',
-                        color: message.sender === 'user' 
-                          ? 'primary.contrastText' 
-                          : 'text.primary',
-                        borderRadius: 2,
-                      }}
-                    >
-                      <Typography variant="body1">
-                        {message.text}
-                      </Typography>
-                      <Typography variant="caption" display="block" sx={{ mt: 1, opacity: 0.7 }}>
-                        {formatTime(message.timestamp)}
-                      </Typography>
-                    </Paper>
-                  }
-                />
-                
-                {message.sender === 'user' && (
-                  <ListItemAvatar sx={{ ml: 2 }}>
-                    <Avatar sx={{ bgcolor: 'secondary.main' }}>
-                      <PersonIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                )}
-              </ListItem>
-              {index < messages.length - 1 && <Divider variant="inset" component="li" />}
-            </React.Fragment>
-          ))}
+                <ListItemAvatar sx={{ minWidth: '45px' }}>
+                  <Avatar 
+                    sx={{ 
+                      bgcolor: message.sender === 'bot' 
+                        ? 'primary.main' 
+                        : 'secondary.main',
+                      width: 38, 
+                      height: 38
+                    }}
+                  >
+                    {message.sender === 'bot' ? <SmartToyIcon /> : <PersonIcon />}
+                  </Avatar>
+                </ListItemAvatar>
+                <MotionPaper
+                  sx={{
+                    p: 1.5,
+                    px: 2,
+                    maxWidth: '70%',
+                    borderRadius: message.sender === 'user' 
+                      ? '18px 4px 18px 18px' 
+                      : '4px 18px 18px 18px',
+                    bgcolor: message.sender === 'user' 
+                      ? 'secondary.light' 
+                      : message.isError 
+                        ? '#FFF3F3' 
+                        : 'primary.light',
+                    color: message.sender === 'user' 
+                      ? 'white' 
+                      : 'text.primary',
+                    boxShadow: 1
+                  }}
+                  whileHover={{ scale: 1.01 }}
+                >
+                  <ListItemText 
+                    primary={message.text} 
+                    secondary={formatTime(message.timestamp)}
+                    primaryTypographyProps={{
+                      variant: 'body1',
+                      sx: { wordBreak: 'break-word' }
+                    }}
+                    secondaryTypographyProps={{
+                      align: 'right',
+                      variant: 'caption',
+                      sx: { 
+                        mt: 0.5, 
+                        opacity: 0.7,
+                        color: message.sender === 'user' ? 'white' : 'inherit'
+                      }
+                    }}
+                  />
+                </MotionPaper>
+              </MotionListItem>
+            ))}
+          </AnimatePresence>
           
+          {/* Show typing animation when loading */}
           {isLoading && (
-            <ListItem>
+            <MotionListItem
+              component={motion.li}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              sx={{ alignItems: 'flex-start' }}
+            >
               <ListItemAvatar>
                 <Avatar sx={{ bgcolor: 'primary.main' }}>
                   <SmartToyIcon />
                 </Avatar>
               </ListItemAvatar>
-              <CircularProgress size={24} />
-            </ListItem>
+              <MotionPaper
+                animate={pulseAnimation}
+                sx={{
+                  p: 2,
+                  px: 3,
+                  borderRadius: '4px 18px 18px 18px',
+                  bgcolor: 'primary.light',
+                  display: 'flex',
+                  gap: 1
+                }}
+              >
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', opacity: 0.6 }}/>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', opacity: 0.8 }}/>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }}/>
+              </MotionPaper>
+            </MotionListItem>
           )}
-          
+
           <div ref={messagesEndRef} />
         </List>
-        
-        {/* Message input */}
-        <Box 
-          component="form" 
-          onSubmit={handleSendMessage}
+      </MotionPaper>
+
+      {/* Message input */}
+      <MotionPaper 
+        component="form"
+        variants={itemVariants}
+        onSubmit={handleSendMessage}
+        elevation={3} 
+        sx={{ 
+          p: 2, 
+          mt: 2, 
+          display: 'flex', 
+          alignItems: 'center',
+          borderRadius: '12px',
+          bgcolor: 'background.paper'
+        }}
+      >
+        <TextField
+          inputRef={inputRef}
+          fullWidth
+          variant="outlined"
+          placeholder="Type your message..."
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
           sx={{ 
-            p: 2, 
-            bgcolor: 'grey.100',
-            display: 'flex',
-            alignItems: 'center'
+            mr: 1,
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 3,
+              backgroundColor: theme.palette.background.default
+            }
           }}
-        >
-          {speechRecognition && (
-            <IconButton 
-              color={isRecording ? "secondary" : "default"}
-              onClick={toggleRecording}
-              sx={{ mr: 1 }}
-            >
-              {isRecording ? <MicOffIcon /> : <MicIcon />}
-            </IconButton>
-          )}
-          
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Type your message..."
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            disabled={isLoading || isRecording}
-            sx={{ mr: 2 }}
-          />
-          
-          <Button
-            variant="contained"
-            color="primary"
-            endIcon={<SendIcon />}
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim() || isLoading}
+        />
+        {speechRecognition && (
+          <MotionIconButton 
+            color={isRecording ? 'secondary' : 'primary'} 
+            onClick={toggleRecording}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            animate={isRecording ? { scale: [1, 1.1, 1], transition: { repeat: Infinity, duration: 1 } } : {}}
           >
-            Send
-          </Button>
-        </Box>
-      </Paper>
-      
-      {/* Error snackbar */}
-      <Snackbar open={!!error} autoHideDuration={6000} onClose={handleCloseError}>
-        <Alert onClose={handleCloseError} severity="warning">
+            {isRecording ? <MicOffIcon /> : <MicIcon />}
+          </MotionIconButton>
+        )}
+        <MotionIconButton 
+          color="primary" 
+          onClick={handleSendMessage}
+          disabled={!newMessage.trim()}
+          whileHover={{ scale: 1.1, rotate: 15 }}
+          whileTap={{ scale: 0.9 }}
+          sx={{ ml: 1 }}
+        >
+          <SendIcon />
+        </MotionIconButton>
+      </MotionPaper>
+
+      {/* Error notification */}
+      <Snackbar 
+        open={!!error} 
+        autoHideDuration={6000} 
+        onClose={handleCloseError}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleCloseError} severity="warning" sx={{ width: '100%' }}>
           {error}
         </Alert>
       </Snackbar>
-    </Box>
+    </MotionBox>
   );
 };
 
