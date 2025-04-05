@@ -123,7 +123,7 @@ const EmotionAnalysis = ({ updateEmotionalState }) => {
     
     try {
       // Call the backend API for analysis
-      const response = await fetch('http://localhost:5000/api/analyze-text', {
+      const response = await fetch('http://localhost:4000/api/analyze-text', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

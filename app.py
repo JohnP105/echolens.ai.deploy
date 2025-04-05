@@ -18,7 +18,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def start_backend_server(debug=False, port=5000):
+def start_backend_server(debug=False, port=4000):
     """Start the Flask backend server."""
     try:
         from backend.api import app
@@ -90,7 +90,7 @@ def main():
     """Main entry point for the RoboMind application."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="RoboMind - Emotion-Aware Companion Robot")
-    parser.add_argument("--backend-port", type=int, default=5000, help="Port for the backend server")
+    parser.add_argument("--backend-port", type=int, default=6900, help="Port for the backend server")
     parser.add_argument("--frontend-port", type=int, default=3000, help="Port for the frontend server")
     parser.add_argument("--debug", action="store_true", help="Run in debug mode")
     parser.add_argument("--hardware", action="store_true", help="Enable physical hardware controller")
