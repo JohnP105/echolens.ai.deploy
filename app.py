@@ -27,12 +27,23 @@ logger = logging.getLogger(__name__)
 def start_backend_server(debug=False, port=5000):
     """Start the Flask backend server."""
     try:
-        from backend.echolens_api import app
+        # Use subprocess to start the backend in a separate process rather than importing
+        # This ensures the Flask app is properly initialized in its own context
+        import subprocess
+        import platform
+        
         logger.info(f"Starting EchoLens.AI backend server on port {port}")
         # Log environment variables (redacted for security)
         logger.info(f"GOOGLE_API_KEY set: {'Yes' if os.environ.get('GOOGLE_API_KEY') else 'No'}")
-        logger.info(f"MONGODB_URL set: {'Yes' if os.environ.get('MONGODB_URL') else 'No'}")
-        app.run(debug=debug, host='0.0.0.0', port=port)
+        
+        backend_cmd = f"python -m backend.echolens_api"
+        
+        # Use different command based on platform
+        if platform.system() == "Windows":
+            return subprocess.Popen(backend_cmd, shell=True, env=os.environ.copy())
+        else:
+            return subprocess.Popen(["python", "-m", "backend.echolens_api"], env=os.environ.copy())
+            
     except Exception as e:
         logger.error(f"Failed to start backend server: {str(e)}")
         sys.exit(1)
@@ -81,9 +92,6 @@ def main():
     # Get the Gemini API key from environment or command line
     parser.add_argument("--api-key", type=str, help="Google Gemini API key")
     
-    # Get the MongoDB URL from environment or command line
-    parser.add_argument("--mongodb-url", type=str, help="MongoDB Atlas connection URL")
-    
     args = parser.parse_args()
     
     # Set environment variables if provided via command line
@@ -91,23 +99,18 @@ def main():
         os.environ["GOOGLE_API_KEY"] = args.api_key
         logger.info("Using Gemini API key from command line arguments")
     
-    if args.mongodb_url:
-        os.environ["MONGODB_URL"] = args.mongodb_url
-        logger.info("Using MongoDB URL from command line arguments")
+    # Set backend port in environment
+    os.environ["PORT"] = str(args.backend_port)
+    os.environ["FLASK_DEBUG"] = "1" if args.debug else "0"
     
     # Set up signal handler for Ctrl+C
     signal.signal(signal.SIGINT, signal_handler)
     
-    # Start backend server in a separate thread
-    backend_thread = threading.Thread(
-        target=start_backend_server,
-        args=(args.debug, args.backend_port),
-        daemon=True
-    )
-    backend_thread.start()
+    # Start backend server as a subprocess
+    backend_process = start_backend_server(args.debug, args.backend_port)
     
     # Give the backend server a moment to start
-    time.sleep(1)
+    time.sleep(2)
     
     # Start frontend server
     frontend_process = start_frontend_server(args.debug, args.frontend_port)
@@ -129,6 +132,8 @@ def main():
     finally:
         if frontend_process:
             frontend_process.terminate()
+        if backend_process:
+            backend_process.terminate()
 
 if __name__ == "__main__":
     logger.info("Starting EchoLens.AI application")
