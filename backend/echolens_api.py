@@ -11,17 +11,29 @@ import numpy as np
 import sounddevice as sd
 import queue
 import speech_recognition as sr
+from database.dbclient import get_db, get_transcriptions_collection, get_sound_alerts_collection, get_user_preferences_collection
 
-# Configure logging
+# Configure logging with absolute path for log file
+log_file_path = os.path.abspath('echolens.log')
+
+# Clear the log file at startup
+with open(log_file_path, 'w') as f:
+    f.write(f"=== EchoLens API Started at {datetime.now().isoformat()} ===\n")
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Set to DEBUG to capture all database operations
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('echolens.log')
+        logging.FileHandler(log_file_path)
     ]
 )
 logger = logging.getLogger(__name__)
+logger.info(f"Logging to file: {log_file_path}")
+logger.info(f"Log file cleared at application startup")
+
+# Ensure database module's logger is also set to DEBUG level
+logging.getLogger('database.dbclient').setLevel(logging.DEBUG)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -31,6 +43,57 @@ CORS(app,
      supports_credentials=True,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization", "Accept"])  # Super permissive CORS settings
+
+# Initialize database
+def init_database():
+    """Initialize database connection and ensure collections exist."""
+    try:
+        logger.info("========== Database Initialization Started ==========")
+        
+        # Check if MongoDB URI is still the placeholder value
+        mongodb_uri = os.environ.get('MONGODB_URI', '')
+        if 'your_username:your_password' in mongodb_uri or 'your_cluster' in mongodb_uri:
+            logger.warning("MongoDB URI appears to be using placeholder values. "
+                          "Please update the .env file with your actual MongoDB connection string.")
+        
+        logger.debug("Attempting to connect to MongoDB...")
+        # Get database connection
+        db = get_db()
+        logger.debug(f"MongoDB connection established, using database: {db.name}")
+        
+        # Get collection handles - this will create them if they don't exist
+        logger.debug("Initializing collections...")
+        transcriptions_collection = get_transcriptions_collection()
+        sound_alerts_collection = get_sound_alerts_collection()
+        user_preferences_collection = get_user_preferences_collection()
+        
+        # Check if collections are empty and log their status
+        logger.debug("Counting documents in collections...")
+        transcriptions_count = transcriptions_collection.count_documents({})
+        sound_alerts_count = sound_alerts_collection.count_documents({})
+        preferences_count = user_preferences_collection.count_documents({})
+        
+        logger.info(f"Collection counts - Transcriptions: {transcriptions_count}, "
+                   f"Sound Alerts: {sound_alerts_count}, "
+                   f"User Preferences: {preferences_count}")
+        
+        # Create indexes for better query performance
+        # These operations are idempotent (safe to run multiple times)
+        logger.debug("Creating database indexes...")
+        transcriptions_collection.create_index([("timestamp", -1)])  # Descending timestamp index
+        sound_alerts_collection.create_index([("timestamp", -1)])    # Descending timestamp index
+        user_preferences_collection.create_index([("user_id", 1)], unique=True)  # Unique user_id index
+        
+        logger.info("Database indexes created/verified")
+        logger.info("========== Database Initialization Successful ==========")
+        return True
+    except Exception as e:
+        logger.error(f"Database initialization failed: {str(e)}")
+        logger.warning("Continuing with in-memory storage only")
+        return False
+
+# Initialize database at startup
+db_initialized = init_database()
 
 # Configure Gemini API
 try:
@@ -540,6 +603,38 @@ def status():
         "audio_processing": "active"
     })
 
+@app.route('/api/database/status', methods=['GET'])
+def database_status():
+    """Check the database connection status."""
+    logger.info("Database status check requested")
+    try:
+        # Try to connect to database again for fresh status
+        logger.debug("Attempting to get fresh database connection")
+        db = get_db()
+        
+        # Check connection by sending a ping command
+        logger.debug("Sending ping command to database")
+        db.command('ping')
+        
+        # Check collections
+        logger.debug("Retrieving list of collections")
+        collections = db.list_collection_names()
+        logger.info(f"Database connection successful. Found collections: {collections}")
+        
+        return jsonify({
+            "status": "connected",
+            "initialized": db_initialized,
+            "database_name": db.name,
+            "collections": collections
+        })
+    except Exception as e:
+        logger.error(f"Database status check failed: {str(e)}")
+        return jsonify({
+            "status": "disconnected",
+            "error": str(e),
+            "initialized": db_initialized
+        })
+
 @app.route('/api/transcriptions', methods=['GET'])
 def get_transcriptions():
     """Get recent speech transcriptions with emotion analysis."""
@@ -744,3 +839,8 @@ if __name__ == '__main__':
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     logger.info(f"Starting backend server on port {port}, debug mode: {debug}")
     app.run(debug=debug, host='0.0.0.0', port=port) 
+else:
+    # If this module is imported, ensure database initialization runs anyway
+    logger.info("EchoLens API module imported - initializing database")
+    if not db_initialized:
+        db_initialized = init_database() 
