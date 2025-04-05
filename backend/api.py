@@ -17,7 +17,7 @@ if GEMINI_API_KEY and GEMINI_API_KEY != "your-gemini-api-key-here":
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel(
-            model_name="gemini-pro",
+            model_name="gemini-2.5-pro-exp-03-25",
             generation_config={
                 "temperature": 0.7,
                 "top_p": 0.95,
@@ -81,7 +81,13 @@ def analyze_text():
                 print("Gemini response was not valid JSON. Falling back to keyword matching.")
                 return keyword_analysis(text)
         except Exception as e:
-            print(f"Error with Gemini API: {e}")
+            error_message = f"Error with Gemini API in analyze_text: {str(e)}"
+            print(error_message)
+            
+            # Log more detailed error information
+            import traceback
+            print(f"Exception details: {traceback.format_exc()}")
+            
             return keyword_analysis(text)
     else:
         # Fall back to keyword matching
@@ -182,7 +188,23 @@ def chat():
             response = model.generate_content(prompt)
             return jsonify({"response": response.text})
         except Exception as e:
-            print(f"Error with Gemini API: {e}")
+            error_message = f"Error with Gemini API: {str(e)}"
+            print(error_message)
+            
+            # Log more detailed error information
+            import traceback
+            print(f"Exception details: {traceback.format_exc()}")
+            
+            # Try to get available models for debugging
+            try:
+                available_models = "Models could not be retrieved"
+                if hasattr(genai, "list_models"):
+                    models_list = genai.list_models()
+                    available_models = ", ".join([m.name for m in models_list])
+                print(f"Available models: {available_models}")
+            except Exception as model_error:
+                print(f"Could not list available models: {model_error}")
+                
             return rule_based_chat(message, context)
     else:
         # Fall back to rule-based responses
