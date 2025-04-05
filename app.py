@@ -7,6 +7,16 @@ import time
 import signal
 import sys
 
+# --- Clear log file on start ---
+LOG_FILE = 'robomind.log'
+try:
+    with open(LOG_FILE, 'w') as f:
+        f.write("") # Truncate the file
+    print(f"Cleared log file: {LOG_FILE}")
+except IOError as e:
+    print(f"Warning: Could not clear log file {LOG_FILE}: {e}")
+# --- End clear log file ---
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

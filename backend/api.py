@@ -5,11 +5,29 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
 
+# --- Import database connection ---
+from .database.dbclient import get_db
+
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# --- Initialize Database Connection ---
+try:
+    db = get_db()
+    # You can now use the 'db' object to interact with MongoDB collections
+    # e.g., chat_sessions_collection = db.chat_sessions
+    DB_AVAILABLE = True
+    print("Database connection established.")
+except Exception as e:
+    # Log the error appropriately if get_db fails (it currently exits)
+    print(f"FATAL: Database connection failed during Flask app initialization: {e}")
+    db = None
+    DB_AVAILABLE = False
+    # Consider if the app should exit if DB is mandatory
+    # sys.exit(1)
 
 # Initialize Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -39,7 +57,8 @@ def health_check():
     return jsonify({
         "status": "healthy", 
         "message": "RoboMind API is running",
-        "gemini_available": GEMINI_AVAILABLE
+        "gemini_available": GEMINI_AVAILABLE,
+        "database_available": DB_AVAILABLE
     })
 
 @app.route('/api/analyze-text', methods=['POST'])
@@ -158,10 +177,33 @@ def chat():
     data = request.json
     message = data.get('message', '')
     context = data.get('context', {})
+    session_id = data.get('session_id') # Assuming frontend sends a session ID
     
     if not message:
         return jsonify({"error": "No message provided"}), 400
     
+    # --- Example DB interaction: Save message and retrieve history (Conceptual) ---
+    if DB_AVAILABLE and session_id:
+        try:
+            chat_sessions_collection = db.chat_sessions
+            # 1. Save user message
+            #    (Need proper timestamping and structure based on documents.py)
+            #    chat_sessions_collection.update_one(
+            #        {"session_id": session_id},
+            #        {"$push": {"messages": {"role": "user", "content": message, "timestamp": datetime.utcnow()}}},
+            #        upsert=True # Create session if it doesn't exist
+            #    )
+
+            # 2. Retrieve conversation history for context (Example)
+            #    session_data = chat_sessions_collection.find_one({"session_id": session_id})
+            #    history = session_data.get('messages', []) if session_data else []
+            #    # Pass 'history' to the LLM prompt
+            pass # Placeholder
+
+        except Exception as e:
+            print(f"Database error in /api/chat: {e}")
+            # Decide how to handle DB errors - maybe proceed without history?
+
     # Use Gemini if available
     if GEMINI_AVAILABLE:
         try:
@@ -186,6 +228,20 @@ def chat():
             """
             
             response = model.generate_content(prompt)
+            
+            # --- Example DB interaction: Save assistant response (Conceptual) ---
+            if DB_AVAILABLE and session_id:
+                try:
+                    # Save assistant response
+                    # chat_sessions_collection.update_one(
+                    #     {"session_id": session_id},
+                    #     {"$push": {"messages": {"role": "assistant", "content": response.text, "timestamp": datetime.utcnow()}}}
+                    # )
+                    pass # Placeholder
+                except Exception as e:
+                    print(f"Database error saving assistant response: {e}")
+            # --- End DB Interaction ---
+
             return jsonify({"response": response.text})
         except Exception as e:
             error_message = f"Error with Gemini API: {str(e)}"
@@ -262,6 +318,19 @@ def rule_based_chat(message, context):
         import random
         response = random.choice(responses)
     
+    # --- Example DB interaction: Save assistant response (Conceptual) ---
+    if DB_AVAILABLE and session_id:
+        try:
+            # Save rule-based assistant response
+            # chat_sessions_collection.update_one(
+            #     {"session_id": session_id},
+            #     {"$push": {"messages": {"role": "assistant", "content": response, "timestamp": datetime.utcnow()}}}
+            # )
+            pass # Placeholder
+        except Exception as e:
+            print(f"Database error saving rule-based response: {e}")
+    # --- End DB Interaction ---
+
     return jsonify({"response": response})
 
 if __name__ == '__main__':
