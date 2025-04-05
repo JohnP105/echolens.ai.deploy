@@ -169,7 +169,7 @@ const ChatInterface = ({ emotionalState }) => {
       }
       
       // Call the backend API for response
-      const response = await fetch('http://localhost:4000/api/chat', {
+      const response = await fetch('http://localhost:6900/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -402,7 +402,7 @@ const ChatInterface = ({ emotionalState }) => {
                       : message.isError 
                         ? '#FFF3F3' 
                         : 'primary.light',
-                    color: message.sender === 'user' 
+                    color: (message.sender === 'user' || (message.sender === 'bot' && !message.isError))
                       ? 'white' 
                       : 'text.primary',
                     boxShadow: 1
@@ -414,7 +414,12 @@ const ChatInterface = ({ emotionalState }) => {
                     secondary={formatTime(message.timestamp)}
                     primaryTypographyProps={{
                       variant: 'body1',
-                      sx: { wordBreak: 'break-word' }
+                      sx: { 
+                        wordBreak: 'break-word',
+                        color: (message.sender === 'user' || (message.sender === 'bot' && !message.isError)) 
+                          ? 'white' 
+                          : 'text.primary'
+                      }
                     }}
                     secondaryTypographyProps={{
                       align: 'right',
@@ -422,7 +427,9 @@ const ChatInterface = ({ emotionalState }) => {
                       sx: { 
                         mt: 0.5, 
                         opacity: 0.7,
-                        color: message.sender === 'user' ? 'white' : 'inherit'
+                        color: (message.sender === 'user' || (message.sender === 'bot' && !message.isError)) 
+                          ? 'white' 
+                          : 'inherit'
                       }
                     }}
                   />
@@ -452,12 +459,19 @@ const ChatInterface = ({ emotionalState }) => {
                   borderRadius: '4px 18px 18px 18px',
                   bgcolor: 'primary.light',
                   display: 'flex',
-                  gap: 1
+                  gap: 1,
+                  alignItems: 'center'
                 }}
               >
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', opacity: 0.6 }}/>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', opacity: 0.8 }}/>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }}/>
+                <Box sx={{ opacity: 0.6 }}>
+                  <SmartToyIcon sx={{ fontSize: 10 }} />
+                </Box>
+                <Box sx={{ opacity: 0.8 }}>
+                  <SmartToyIcon sx={{ fontSize: 10 }} />
+                </Box>
+                <Box>
+                  <SmartToyIcon sx={{ fontSize: 10 }} />
+                </Box>
               </MotionPaper>
             </MotionListItem>
           )}

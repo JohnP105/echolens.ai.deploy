@@ -85,6 +85,17 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // Get background class based on emotional state and dark mode
+  const getBackgroundClass = () => {
+    if (['happy', 'excited', 'content'].includes(emotionalState.emotion)) {
+      return 'bg-happy';
+    } else if (['sad', 'depressed', 'anxious'].includes(emotionalState.emotion)) {
+      return 'bg-sad';
+    } else {
+      return darkMode ? 'bg-dark-dynamic' : 'bg-light-dynamic';
+    }
+  };
   
   // Trigger confetti for positive emotions
   useEffect(() => {
@@ -128,8 +139,8 @@ function App() {
         main: '#f50057',
       },
       background: {
-        default: darkMode ? '#121212' : '#f5f5f5',
-        paper: darkMode ? '#1e1e1e' : '#ffffff',
+        default: 'transparent', // Make default background transparent to show gradient
+        paper: darkMode ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)', // Semi-transparent paper
       },
     },
     typography: {
@@ -162,6 +173,13 @@ function App() {
           },
         },
       },
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: {
+            backgroundAttachment: 'fixed',
+          },
+        },
+      },
     },
   }), [darkMode]);
 
@@ -175,13 +193,13 @@ function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <Box
+          className={darkMode ? 'bg-dark-dynamic' : 'bg-light-dynamic'}
           sx={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             minHeight: '100vh',
-            bgcolor: 'background.default'
           }}
         >
           <Box
@@ -224,11 +242,13 @@ function App() {
       <CssBaseline />
       <Router>
         <Box
+          className={getBackgroundClass()}
           sx={{
             display: 'flex',
             flexDirection: 'column',
             minHeight: '100vh',
             position: 'relative',
+            transition: 'background 0.5s ease',
           }}
         >
           <CustomCursor darkMode={darkMode} />
