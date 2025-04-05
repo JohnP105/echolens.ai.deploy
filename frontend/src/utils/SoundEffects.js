@@ -1,4 +1,4 @@
-// Sound effects utility for the RoboMind application
+// Sound effects utility for the EchoLens.AI application
 
 // Sound URLs (would be replaced with actual files in production)
 const SOUND_URLS = {

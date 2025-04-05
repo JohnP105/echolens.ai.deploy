@@ -16,6 +16,7 @@ import ParticleBackground from './components/ParticleBackground';
 import CustomCursor from './components/CustomCursor';
 import ConfettiEffect from './components/ConfettiEffect';
 import SkeletonLoader from './components/SkeletonLoader';
+import EchoLensInterface from './components/EchoLensInterface';
 
 // Import utilities
 import SoundEffects from './utils/SoundEffects';
@@ -47,7 +48,7 @@ const AnimatedRoutes = ({ emotionalState, updateEmotionalState, darkMode }) => {
         <Route path="/" element={
           loading['/'] 
             ? <SkeletonLoader type="dashboard" /> 
-            : <Dashboard emotionalState={emotionalState} darkMode={darkMode} />
+            : <EchoLensInterface darkMode={darkMode} />
         } />
         <Route
           path="/analysis"
@@ -223,14 +224,14 @@ function App() {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              RM
+              EL
             </Typography>
           </Box>
           <Typography variant="h5" sx={{ mb: 1 }}>
-            RoboMind
+            EchoLens.AI
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Initializing your AI companion...
+            Initializing your sound & emotion interpreter...
           </Typography>
         </Box>
       </ThemeProvider>

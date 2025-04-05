@@ -1,38 +1,57 @@
 import React, { useState, useEffect } from 'react';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { 
   AppBar, 
   Toolbar, 
   Typography, 
   Box, 
-  Button, 
+  IconButton, 
+  Menu, 
+  MenuItem,
+  Button,
   Chip,
-  useMediaQuery,
-  useTheme,
-  IconButton,
   Tooltip,
-  Menu,
-  MenuItem
+  Tab,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-
-// Icons
+import { motion, useScroll, AnimatePresence } from 'framer-motion';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
 import SentimentSatisfiedAltIcon from '@mui/icons-material/SentimentSatisfiedAlt';
 import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';
 import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import HearingIcon from '@mui/icons-material/Hearing';
+import HomeIcon from '@mui/icons-material/Home';
+import SettingsIcon from '@mui/icons-material/Settings';
 
 // Motion components
-const MotionAppBar = motion(AppBar);
 const MotionBox = motion(Box);
-const MotionTypography = motion(Typography);
-const MotionChip = motion(Chip);
-const MotionToolbar = motion(Toolbar);
 const MotionIconButton = motion(IconButton);
+const MotionTab = ({ active, ...props }) => (
+  <Tab 
+    component={motion.div}
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+    sx={{ 
+      opacity: active ? 1 : 0.7,
+      fontWeight: active ? 'bold' : 'normal',
+      '&::after': active ? {
+        content: '""',
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        width: '100%',
+        height: '3px',
+        bgcolor: 'primary.main',
+        borderRadius: '4px 4px 0 0'
+      } : null
+    }}
+    {...props}
+  />
+);
 
 const Header = ({ emotionalState, darkMode, toggleDarkMode }) => {
   const theme = useTheme();
@@ -137,147 +156,107 @@ const Header = ({ emotionalState, darkMode, toggleDarkMode }) => {
   );
   
   return (
-    <MotionAppBar 
-      position="sticky" 
-      color="default" 
-      elevation={scrolled ? 4 : 0}
-      sx={{ 
-        bgcolor: darkMode 
-          ? (scrolled ? 'rgba(18, 18, 18, 0.95)' : 'rgba(18, 18, 18, 0.7)')
-          : (scrolled ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.7)'),
-        backdropFilter: 'blur(10px)',
-        transition: 'all 0.3s ease'
-      }}
+    <MotionBox
+      component={motion.div}
+      variants={navVariants}
       initial="initial"
       animate="animate"
-      variants={navVariants}
+      exit="exit"
+      sx={{ flexGrow: 1, mb: 4 }}
     >
-      <MotionToolbar>
-        {/* Logo and title */}
-        <MotionBox 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            mr: 3,
-            flexGrow: { xs: 1, md: 0 } 
-          }}
-          variants={logoVariants}
+      <AppBar 
+        position="static" 
+        elevation={0}
+        sx={{ 
+          bgcolor: 'transparent', 
+          backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid',
+          borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+          color: 'text.primary'
+        }}
+      >
+        <MotionBox
+          component={Toolbar}
+          sx={{ justifyContent: 'space-between' }}
         >
-          <MotionBox
-            animate={{ 
-              rotate: [0, 5, 0, -5, 0],
-              scale: [1, 1.1, 1]
-            }}
-            transition={{ 
-              duration: 5,
-              repeat: Infinity,
-              repeatType: "reverse"
-            }}
-            sx={{ mr: 1, display: 'flex', alignItems: 'center' }}
-          >
-            <SmartToyIcon 
-              color="primary" 
-              sx={{ 
-                fontSize: 32,
-                filter: darkMode ? 'drop-shadow(0 0 2px rgba(33, 150, 243, 0.5))' : 'none'
-              }} 
-            />
-          </MotionBox>
-          <MotionTypography 
-            variant={isMobile ? "h6" : "h5"} 
-            component="div" 
-            sx={{ 
-              fontWeight: 'bold', 
-              background: 'linear-gradient(45deg, #2196f3, #21CBF3)', 
-              WebkitBackgroundClip: 'text', 
-              WebkitTextFillColor: 'transparent',
-              textShadow: darkMode ? '0 0 10px rgba(33, 150, 243, 0.3)' : 'none'
-            }}
-            whileHover={{ scale: 1.05 }}
-          >
-            RoboMind
-          </MotionTypography>
-        </MotionBox>
+          {/* Logo and Title */}
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <MotionBox
+              component={motion.div}
+              variants={logoVariants}
+              whileHover={{ rotate: 5 }}
+              sx={{ display: 'flex', alignItems: 'center', mr: 1 }}
+            >
+              <HearingIcon sx={{ fontSize: 28, color: 'primary.main', mr: 1 }} />
+              <Typography variant="h6" noWrap component={RouterLink} to="/" sx={{ 
+                fontWeight: 'bold',
+                textDecoration: 'none',
+                color: 'inherit',
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                EchoLens<Box component="span" sx={{ color: 'primary.main' }}>.AI</Box>
+              </Typography>
+            </MotionBox>
+          </Box>
 
-        {/* Navigation menu - Desktop */}
-        <MotionBox 
-          sx={{ 
-            display: { xs: 'none', md: 'flex' }, 
-            alignItems: 'center',
-            ml: 'auto'
-          }}
-        >
-          {/* Emotion display */}
-          <AnimatePresence mode="wait">
-            {emotionalState && (
-              <MotionChip
-                key={emotionalState.emotion}
-                component={motion.div}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+          {/* Desktop Navigation */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
+            <MotionTab
+              component={RouterLink}
+              to="/"
+              label="Home"
+              icon={<HomeIcon />}
+              active={isActive('/')}
+            />
+            <MotionTab
+              component={RouterLink}
+              to="/settings"
+              label="Settings"
+              icon={<SettingsIcon />}
+              active={isActive('/settings')}
+            />
+            
+            {emotionalState && emotionalState.emotion !== 'neutral' && (
+              <Chip
                 icon={icon}
-                label={emotionalState.emotion || 'Neutral'}
+                label={emotionalState.emotion}
                 color={color}
-                size={isMobile ? 'small' : 'medium'}
-                sx={{ mr: 2 }}
+                size="small"
+                sx={{ ml: 2 }}
               />
             )}
-          </AnimatePresence>
-
-          {/* Navigation buttons */}
-          <MotionBox sx={{ '& > *': { mx: 0.5 } }}>
-            {[
-              { path: '/', label: 'Dashboard' },
-              { path: '/analysis', label: 'Emotion Analysis' },
-              { path: '/chat', label: 'Chat' },
-              { path: '/settings', label: 'Settings' }
-            ].map((item) => (
-              <Button 
-                key={item.path}
-                component={RouterLink} 
-                to={item.path}
-                color="inherit"
-                size={isMobile ? 'small' : 'medium'}
-                sx={{ 
-                  position: 'relative',
-                  '&:after': isActive(item.path) ? {
-                    content: '""',
-                    position: 'absolute',
-                    bottom: '0',
-                    left: '0',
-                    width: '100%',
-                    height: '3px',
-                    background: theme.palette.primary.main,
-                    borderRadius: '4px 4px 0 0'
-                  } : {}
-                }}
-              >
-                {item.label}
-                {isActive(item.path) && (
-                  <MotionBox
-                    layoutId="activeIndicator"
-                    sx={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: '3px',
-                      background: theme.palette.primary.main,
-                      borderRadius: '4px 4px 0 0'
-                    }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  />
-                )}
-              </Button>
-            ))}
-          </MotionBox>
-          
-          {/* Action buttons */}
-          <Box sx={{ display: 'flex', ml: 2 }}>
-            <NotificationButton />
             
+            <Box sx={{ display: 'flex', ml: 2 }}>
+              <NotificationButton />
+              
+              <Tooltip title={darkMode ? "Light Mode" : "Dark Mode"}>
+                <MotionIconButton 
+                  color="inherit" 
+                  onClick={toggleDarkMode}
+                  sx={{ ml: 1 }}
+                  whileHover="hover"
+                  whileTap="tap"
+                  variants={iconButtonVariants}
+                >
+                  {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+                </MotionIconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+
+          {/* Mobile menu button */}
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, ml: 'auto' }}>
+            {emotionalState && emotionalState.emotion !== 'neutral' && (
+              <Chip
+                icon={icon}
+                label={emotionalState.emotion}
+                color={color}
+                size="small"
+                sx={{ mr: 1 }}
+              />
+            )}
+            <NotificationButton />
             <Tooltip title={darkMode ? "Light Mode" : "Dark Mode"}>
               <MotionIconButton 
                 color="inherit" 
@@ -290,70 +269,44 @@ const Header = ({ emotionalState, darkMode, toggleDarkMode }) => {
                 {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
               </MotionIconButton>
             </Tooltip>
-          </Box>
-        </MotionBox>
-
-        {/* Mobile menu button */}
-        <Box sx={{ display: { xs: 'flex', md: 'none' }, ml: 'auto' }}>
-          {emotionalState && emotionalState.emotion !== 'neutral' && (
-            <Chip
-              icon={icon}
-              label={emotionalState.emotion}
-              color={color}
-              size="small"
-              sx={{ mr: 1 }}
-            />
-          )}
-          <NotificationButton />
-          <Tooltip title={darkMode ? "Light Mode" : "Dark Mode"}>
-            <MotionIconButton 
+            <IconButton 
               color="inherit" 
-              onClick={toggleDarkMode}
+              edge="end" 
+              onClick={handleMobileMenuOpen}
               sx={{ ml: 1 }}
-              whileHover="hover"
-              whileTap="tap"
-              variants={iconButtonVariants}
             >
-              {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
-            </MotionIconButton>
-          </Tooltip>
-          <IconButton 
-            color="inherit" 
-            edge="end" 
-            onClick={handleMobileMenuOpen}
-            sx={{ ml: 1 }}
-          >
-            <MoreVertIcon />
-          </IconButton>
-        </Box>
+              <MoreVertIcon />
+            </IconButton>
+          </Box>
 
-        {/* Mobile menu */}
-        <Menu
-          anchorEl={mobileMenuAnchor}
-          open={Boolean(mobileMenuAnchor)}
-          onClose={handleMobileMenuClose}
-          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-        >
-          {[
-            { path: '/', label: 'Dashboard' },
-            { path: '/analysis', label: 'Emotion Analysis' },
-            { path: '/chat', label: 'Chat' },
-            { path: '/settings', label: 'Settings' }
-          ].map((item) => (
-            <MenuItem 
-              key={item.path} 
-              component={RouterLink} 
-              to={item.path}
-              onClick={handleMobileMenuClose}
-              selected={isActive(item.path)}
-            >
-              {item.label}
-            </MenuItem>
-          ))}
-        </Menu>
-      </MotionToolbar>
-    </MotionAppBar>
+          {/* Mobile menu */}
+          <Menu
+            anchorEl={mobileMenuAnchor}
+            open={Boolean(mobileMenuAnchor)}
+            onClose={handleMobileMenuClose}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          >
+            {[
+              { path: '/', label: 'Dashboard' },
+              { path: '/analysis', label: 'Emotion Analysis' },
+              { path: '/chat', label: 'Chat' },
+              { path: '/settings', label: 'Settings' }
+            ].map((item) => (
+              <MenuItem 
+                key={item.path} 
+                component={RouterLink} 
+                to={item.path}
+                onClick={handleMobileMenuClose}
+                selected={isActive(item.path)}
+              >
+                {item.label}
+              </MenuItem>
+            ))}
+          </Menu>
+        </MotionBox>
+      </AppBar>
+    </MotionBox>
   );
 };
 

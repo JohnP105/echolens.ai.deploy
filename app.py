@@ -6,6 +6,12 @@ import webbrowser
 import time
 import signal
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), 'backend', '.env'))
+logger = logging.getLogger(__name__)
+logger.info("Environment variables loaded from .env file")
 
 # Configure logging
 logging.basicConfig(
@@ -13,16 +19,19 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('robomind.log')
+        logging.FileHandler('echolens.log')
     ]
 )
 logger = logging.getLogger(__name__)
 
-def start_backend_server(debug=False, port=4000):
+def start_backend_server(debug=False, port=5000):
     """Start the Flask backend server."""
     try:
-        from backend.api import app
-        logger.info(f"Starting backend server on port {port}")
+        from backend.echolens_api import app
+        logger.info(f"Starting EchoLens.AI backend server on port {port}")
+        # Log environment variables (redacted for security)
+        logger.info(f"GOOGLE_API_KEY set: {'Yes' if os.environ.get('GOOGLE_API_KEY') else 'No'}")
+        logger.info(f"MONGODB_URL set: {'Yes' if os.environ.get('MONGODB_URL') else 'No'}")
         app.run(debug=debug, host='0.0.0.0', port=port)
     except Exception as e:
         logger.error(f"Failed to start backend server: {str(e)}")
@@ -55,47 +64,36 @@ def start_frontend_server(debug=False, port=3000):
     finally:
         os.chdir("..")
 
-def start_hardware_controller(simulation_mode=True):
-    """Start the hardware controller for robot integration."""
-    if simulation_mode:
-        logger.info("Starting hardware controller in simulation mode")
-    else:
-        logger.info("Starting hardware controller with real hardware")
-    
-    try:
-        from hardware.robot_controller import RobotController
-        
-        controller = RobotController()
-        
-        # Just demonstrate a few emotions and exit
-        if simulation_mode:
-            emotions = ["happy", "sad", "neutral"]
-            for emotion in emotions:
-                logger.info(f"Simulating '{emotion}' emotion response")
-                controller.respond_to_emotion(emotion)
-                time.sleep(2)
-        else:
-            # Start continuous emotion detection with camera
-            controller.run_emotion_detection_loop()
-        
-    except Exception as e:
-        logger.error(f"Error in hardware controller: {str(e)}")
-
 def signal_handler(sig, frame):
     """Handle Ctrl+C to gracefully shut down all components."""
-    logger.info("Shutting down RoboMind...")
+    logger.info("Shutting down EchoLens.AI...")
     sys.exit(0)
 
 def main():
-    """Main entry point for the RoboMind application."""
+    """Main entry point for the EchoLens.AI application."""
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="RoboMind - Emotion-Aware Companion Robot")
-    parser.add_argument("--backend-port", type=int, default=6900, help="Port for the backend server")
+    parser = argparse.ArgumentParser(description="EchoLens.AI - Emotion & Sound Translator for Deaf/HoH Users")
+    parser.add_argument("--backend-port", type=int, default=5000, help="Port for the backend server")
     parser.add_argument("--frontend-port", type=int, default=3000, help="Port for the frontend server")
     parser.add_argument("--debug", action="store_true", help="Run in debug mode")
-    parser.add_argument("--hardware", action="store_true", help="Enable physical hardware controller")
     parser.add_argument("--open-browser", action="store_true", help="Automatically open web browser")
+    
+    # Get the Gemini API key from environment or command line
+    parser.add_argument("--api-key", type=str, help="Google Gemini API key")
+    
+    # Get the MongoDB URL from environment or command line
+    parser.add_argument("--mongodb-url", type=str, help="MongoDB Atlas connection URL")
+    
     args = parser.parse_args()
+    
+    # Set environment variables if provided via command line
+    if args.api_key:
+        os.environ["GOOGLE_API_KEY"] = args.api_key
+        logger.info("Using Gemini API key from command line arguments")
+    
+    if args.mongodb_url:
+        os.environ["MONGODB_URL"] = args.mongodb_url
+        logger.info("Using MongoDB URL from command line arguments")
     
     # Set up signal handler for Ctrl+C
     signal.signal(signal.SIGINT, signal_handler)
@@ -122,15 +120,6 @@ def main():
     else:
         logger.info(f"App running at http://localhost:{args.frontend_port} (use --open-browser to open automatically)")
     
-    # Start hardware controller if requested
-    if args.hardware:
-        hardware_thread = threading.Thread(
-            target=start_hardware_controller,
-            args=(not args.hardware,),  # Simulation mode if --hardware not specified
-            daemon=True
-        )
-        hardware_thread.start()
-    
     # Keep the main thread alive
     try:
         while True:
@@ -142,5 +131,5 @@ def main():
             frontend_process.terminate()
 
 if __name__ == "__main__":
-    logger.info("Starting RoboMind application")
+    logger.info("Starting EchoLens.AI application")
     main() 

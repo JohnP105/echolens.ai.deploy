@@ -207,7 +207,7 @@ const Dashboard = ({ emotionalState, darkMode }) => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              Welcome to RoboMind
+              Welcome to EchoLens.AI
             </MotionTypography>
             <MotionTypography 
               variant="h5"
@@ -215,7 +215,7 @@ const Dashboard = ({ emotionalState, darkMode }) => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
             >
-              Your Emotion-Aware Companion Robot
+              Your Sound & Emotion Translator
             </MotionTypography>
             <MotionTypography 
               variant="body1" 
@@ -224,8 +224,9 @@ const Dashboard = ({ emotionalState, darkMode }) => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
             >
-              RoboMind uses AI to detect your emotional state and provides mental health support tailored to your needs.
-              Start by trying out the emotion analysis with your webcam or simply chat with the robot.
+              EchoLens.AI uses advanced AI to detect environmental sounds and emotional tones, providing real-time 
+              translations for Deaf and hard-of-hearing users.
+              Start by exploring sound detection or try out the emotion analysis features.
             </MotionTypography>
 
             <MotionBox
@@ -476,24 +477,24 @@ const Dashboard = ({ emotionalState, darkMode }) => {
         whileHover={{ boxShadow: "0px 8px 25px rgba(0, 0, 0, 0.08)" }}
       >
         <Typography variant="h5" gutterBottom>
-          About RoboMind
+          About EchoLens.AI
         </Typography>
         <Divider sx={{ mb: 2 }} />
         <Grid container spacing={3}>
           <Grid item xs={12} sm={6}>
             <Typography variant="body1" paragraph>
-              RoboMind is an AI-powered companion designed to support your mental health through emotion recognition and compassionate conversation. 
+              EchoLens.AI is an advanced sound and emotion translator designed to support Deaf and hard-of-hearing users through real-time environmental sound detection and emotional tone recognition.
             </Typography>
             <Typography variant="body1" paragraph>
-              Using advanced technology like the OM1 SDK and Gemini API, RoboMind can analyze facial expressions, voice patterns, and text to understand how you're feeling.
+              Using state-of-the-art technology powered by the Gemini API, EchoLens.AI can analyze audio signals, voice patterns, and text to provide contextual information about the surrounding environment.
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography variant="body1" paragraph>
-              We're committed to accessibility and inclusion, with features for users of diverse abilities and backgrounds, including voice control and multilingual support.
+              We're committed to accessibility and inclusion, with features designed specifically for the Deaf and hard-of-hearing community, including visual notifications, haptic feedback, and customizable alert settings.
             </Typography>
             <Typography variant="body1">
-              <strong>Note:</strong> While RoboMind provides helpful support, it's not a replacement for professional mental health services. If you're experiencing severe distress, please contact a qualified professional.
+              <strong>Note:</strong> EchoLens.AI aims to enhance awareness of environmental sounds and emotional context, providing greater independence and confidence in navigating daily life.
             </Typography>
           </Grid>
         </Grid>
@@ -509,7 +510,7 @@ const Dashboard = ({ emotionalState, darkMode }) => {
         >
           <AccessibilityNewIcon color="primary" sx={{ mr: 1 }} />
           <Typography variant="body2" color="text.secondary">
-            RoboMind is designed to be accessible to users of all abilities.
+            EchoLens.AI is designed to be fully accessible to Deaf and hard-of-hearing users.
           </Typography>
         </MotionBox>
       </MotionPaper>
