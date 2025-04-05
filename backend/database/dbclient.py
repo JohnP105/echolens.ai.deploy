@@ -16,10 +16,9 @@ logging.basicConfig(level=logging.DEBUG) # Configures root logger
 logger = logging.getLogger(__name__) # Get logger for this module
 
 # Ensure logger propagates to root logger configured in app.py
-logger.propagate = True 
+logger.propagate = True
 
-MONGODB_URI = os.environ.get('MONGODB_URI') # Use .get() for safer access
-DB_NAME = os.environ.get('DB_NAME', 'sfhacks_db') # Get DB name from env or use default
+BRAIN_DB_NAME = "brain" # Hardcode the target database name
 
 # Global variables for client and db (consider alternatives for larger apps)
 _client = None
@@ -36,7 +35,6 @@ def get_db():
 
     logger.info("Attempting to load MONGODB_URI...") # Log before accessing env var
     MONGODB_URI = os.environ.get('MONGODB_URI')
-    DB_NAME = os.environ.get('DB_NAME', 'sfhacks_db')
 
     if not MONGODB_URI:
         logger.error("MONGODB_URI not found. Make sure it's set in the .env file or environment variables.")
@@ -54,8 +52,21 @@ def get_db():
         _client.admin.command('ping') # Use ping instead of ismaster
         logger.info("MongoDB connection successful (ping successful).")
 
-        _db = _client[DB_NAME]
-        logger.info(f"Connected to database instance: '{DB_NAME}'")
+        # Check if the target 'brain' database exists for logging purposes
+        try:
+            logger.debug("Checking for existence of 'brain' database...")
+            db_names = _client.list_database_names()
+            if BRAIN_DB_NAME in db_names:
+                logger.info(f"Database '{BRAIN_DB_NAME}' found in cluster.")
+            else:
+                logger.info(f"Database '{BRAIN_DB_NAME}' not found. It will be created automatically on first write.")
+        except Exception as e:
+            # This might fail due to permissions, but connection is likely still okay
+            logger.warning(f"Could not list database names (permissions issue?): {e}. Proceeding assuming connection is valid.")
+
+        # Get the database handle (MongoDB creates it implicitly if it doesn't exist)
+        _db = _client[BRAIN_DB_NAME]
+        logger.info(f"Using database instance: '{BRAIN_DB_NAME}'")
 
         # Optional: Check if DB actually exists or will be created on first write
         # try:

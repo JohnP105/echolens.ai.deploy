@@ -4,6 +4,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
+import logging
+from datetime import datetime, timezone
 
 # --- Import database connection ---
 from .database.dbclient import get_db
@@ -17,17 +19,72 @@ CORS(app)
 # --- Initialize Database Connection ---
 try:
     db = get_db()
-    # You can now use the 'db' object to interact with MongoDB collections
-    # e.g., chat_sessions_collection = db.chat_sessions
+    # Define collection names
+    CHAT_HISTORY_COLLECTION = "chat_history"
+    USER_DATA_COLLECTION = "user_data" # Define user data collection name
     DB_AVAILABLE = True
-    print("Database connection established.")
+    # Use the main logger configured in app.py
+    logger = logging.getLogger(__name__)
+    logger.info("Database connection established and chat_history collection defined.")
+
+    # Also log definition for user_data collection
+    if DB_AVAILABLE:
+        try:
+            user_data_collection = db[USER_DATA_COLLECTION]
+            logger.info(f"User data collection ('{USER_DATA_COLLECTION}') defined. Will be created on first write if not present.")
+            # If you wanted to ensure its creation/add sample data, do it here
+            # Example: user_data_collection.update_one({"user_id": "test-user"}, {"$set": {"profile.name": "Test User"}}, upsert=True)
+        except Exception as e:
+             logger.error(f"Error accessing user data collection '{USER_DATA_COLLECTION}': {e}")
+
+    # --- Insert Sample Data for Testing ---
+    if DB_AVAILABLE:
+        try:
+            logger.info("Attempting to insert sample chat data for testing...")
+            chat_collection = db[CHAT_HISTORY_COLLECTION]
+            sample_session_id = "test-session-123"
+            sample_messages = [
+                {
+                    "role": "user",
+                    "content": "Hello RoboMind!",
+                    "timestamp": datetime.now(timezone.utc)
+                },
+                {
+                    "role": "assistant",
+                    "content": "Hello! How can I assist you today?",
+                    "timestamp": datetime.now(timezone.utc)
+                }
+            ]
+
+            # Use update_one with upsert to avoid duplicates if app restarts
+            result = chat_collection.update_one(
+                {"session_id": sample_session_id},
+                {
+                    "$set": {
+                        "messages": sample_messages,
+                        "updated_at": datetime.now(timezone.utc)
+                    },
+                    "$setOnInsert": {"created_at": datetime.now(timezone.utc)}
+                },
+                upsert=True
+            )
+
+            if result.upserted_id:
+                logger.info(f"Successfully inserted sample chat data with session_id: '{sample_session_id}'.")
+            elif result.modified_count > 0:
+                logger.info(f"Successfully updated existing sample chat data with session_id: '{sample_session_id}'.")
+            else:
+                logger.info(f"Sample chat data for session_id '{sample_session_id}' already exists and was not modified.")
+
+        except Exception as e:
+            logger.error(f"Failed to insert/update sample chat data: {e}")
+    # --- End Insert Sample Data ---
+
 except Exception as e:
-    # Log the error appropriately if get_db fails (it currently exits)
-    print(f"FATAL: Database connection failed during Flask app initialization: {e}")
+    logger = logging.getLogger(__name__)
+    logger.error(f"FATAL: Database connection failed during Flask app initialization: {e}")
     db = None
     DB_AVAILABLE = False
-    # Consider if the app should exit if DB is mandatory
-    # sys.exit(1)
 
 # Initialize Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -179,30 +236,46 @@ def chat():
     context = data.get('context', {})
     session_id = data.get('session_id') # Assuming frontend sends a session ID
     
+    # Validate session_id (important!)
+    if not session_id:
+        logger.warning("Chat request received without session_id.")
+        return jsonify({"error": "session_id is required"}), 400
+
     if not message:
         return jsonify({"error": "No message provided"}), 400
     
-    # --- Example DB interaction: Save message and retrieve history (Conceptual) ---
-    if DB_AVAILABLE and session_id:
+    # --- Save User Message to DB ---
+    if DB_AVAILABLE:
         try:
-            chat_sessions_collection = db.chat_sessions
-            # 1. Save user message
-            #    (Need proper timestamping and structure based on documents.py)
-            #    chat_sessions_collection.update_one(
-            #        {"session_id": session_id},
-            #        {"$push": {"messages": {"role": "user", "content": message, "timestamp": datetime.utcnow()}}},
-            #        upsert=True # Create session if it doesn't exist
-            #    )
+            chat_collection = db[CHAT_HISTORY_COLLECTION]
+            user_message_doc = {
+                "role": "user",
+                "content": message,
+                "timestamp": datetime.now(timezone.utc) # Use UTC timezone
+            }
+            result = chat_collection.update_one(
+                {"session_id": session_id},
+                {
+                    "$push": {"messages": user_message_doc},
+                    "$setOnInsert": {"created_at": datetime.now(timezone.utc)}, # Set creation time only on insert
+                    "$set": {"updated_at": datetime.now(timezone.utc)} # Update last modified time
+                },
+                upsert=True # Create session if it doesn't exist
+            )
+            if result.upserted_id:
+                logger.info(f"Created new chat session '{session_id}' and saved user message.")
+            elif result.modified_count > 0:
+                logger.info(f"Added user message to existing session '{session_id}'.")
+            else:
+                 logger.warning(f"User message DB update for session '{session_id}' resulted in no change (modified_count=0, upserted_id=None).")
 
-            # 2. Retrieve conversation history for context (Example)
-            #    session_data = chat_sessions_collection.find_one({"session_id": session_id})
-            #    history = session_data.get('messages', []) if session_data else []
-            #    # Pass 'history' to the LLM prompt
-            pass # Placeholder
+            # Note: Retrieving history for context is not implemented here yet.
+            # We would add a find_one call here if needed for the LLM prompt.
 
         except Exception as e:
-            print(f"Database error in /api/chat: {e}")
-            # Decide how to handle DB errors - maybe proceed without history?
+            logger.error(f"Database error saving user message for session '{session_id}': {e}")
+            # Decide how to handle DB errors - maybe proceed without saving?
+    # --- End Save User Message ---
 
     # Use Gemini if available
     if GEMINI_AVAILABLE:
@@ -229,20 +302,33 @@ def chat():
             
             response = model.generate_content(prompt)
             
-            # --- Example DB interaction: Save assistant response (Conceptual) ---
-            if DB_AVAILABLE and session_id:
-                try:
-                    # Save assistant response
-                    # chat_sessions_collection.update_one(
-                    #     {"session_id": session_id},
-                    #     {"$push": {"messages": {"role": "assistant", "content": response.text, "timestamp": datetime.utcnow()}}}
-                    # )
-                    pass # Placeholder
-                except Exception as e:
-                    print(f"Database error saving assistant response: {e}")
-            # --- End DB Interaction ---
+            response_text = response.text
 
-            return jsonify({"response": response.text})
+            # --- Save Gemini Assistant Response to DB ---
+            if DB_AVAILABLE:
+                try:
+                    assistant_message_doc = {
+                        "role": "assistant",
+                        "content": response_text,
+                        "timestamp": datetime.now(timezone.utc)
+                    }
+                    result = chat_collection.update_one(
+                        {"session_id": session_id},
+                        {
+                            "$push": {"messages": assistant_message_doc},
+                            "$set": {"updated_at": datetime.now(timezone.utc)}
+                         }
+                        # No upsert needed here, session should exist from user message
+                    )
+                    if result.modified_count > 0:
+                        logger.info(f"Saved Gemini response to session '{session_id}'.")
+                    else:
+                        logger.warning(f"Gemini response DB update for session '{session_id}' resulted in no change.")
+                except Exception as e:
+                    logger.error(f"Database error saving Gemini response for session '{session_id}': {e}")
+            # --- End Save Gemini Response ---
+
+            return jsonify({"response": response_text})
         except Exception as e:
             error_message = f"Error with Gemini API: {str(e)}"
             print(error_message)
@@ -264,7 +350,36 @@ def chat():
             return rule_based_chat(message, context)
     else:
         # Fall back to rule-based responses
-        return rule_based_chat(message, context)
+        rule_based_response_json = rule_based_chat(message, context)
+        response_data = rule_based_response_json.get_json()
+        response_text = response_data.get('response', "Sorry, I couldn't process that.")
+
+        # --- Save Rule-Based Assistant Response to DB ---
+        if DB_AVAILABLE:
+            try:
+                chat_collection = db[CHAT_HISTORY_COLLECTION]
+                assistant_message_doc = {
+                    "role": "assistant",
+                    "content": response_text,
+                    "timestamp": datetime.now(timezone.utc)
+                }
+                result = chat_collection.update_one(
+                    {"session_id": session_id},
+                    {
+                        "$push": {"messages": assistant_message_doc},
+                        "$set": {"updated_at": datetime.now(timezone.utc)}
+                    }
+                    # No upsert needed here, session should exist from user message
+                )
+                if result.modified_count > 0:
+                    logger.info(f"Saved rule-based response to session '{session_id}'.")
+                else:
+                     logger.warning(f"Rule-based response DB update for session '{session_id}' resulted in no change.")
+            except Exception as e:
+                logger.error(f"Database error saving rule-based response for session '{session_id}': {e}")
+        # --- End Save Rule-Based Response ---
+
+        return rule_based_response_json # Return the original JSON response
 
 def rule_based_chat(message, context):
     """Simple rule-based chat responses."""
@@ -318,20 +433,11 @@ def rule_based_chat(message, context):
         import random
         response = random.choice(responses)
     
-    # --- Example DB interaction: Save assistant response (Conceptual) ---
-    if DB_AVAILABLE and session_id:
-        try:
-            # Save rule-based assistant response
-            # chat_sessions_collection.update_one(
-            #     {"session_id": session_id},
-            #     {"$push": {"messages": {"role": "assistant", "content": response, "timestamp": datetime.utcnow()}}}
-            # )
-            pass # Placeholder
-        except Exception as e:
-            print(f"Database error saving rule-based response: {e}")
-    # --- End DB Interaction ---
-
-    return jsonify({"response": response})
+    result = {
+        "response": response
+    }
+    
+    return jsonify(result)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=4000) 
