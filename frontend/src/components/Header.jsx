@@ -7,16 +7,24 @@ import {
   Button, 
   Chip,
   useMediaQuery,
-  useTheme 
+  useTheme,
+  IconButton,
+  Tooltip,
+  Menu,
+  MenuItem
 } from '@mui/material';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Icons for emotional states
+// Icons
 import SentimentSatisfiedAltIcon from '@mui/icons-material/SentimentSatisfiedAlt';
 import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';
 import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 
 // Motion components
 const MotionAppBar = motion(AppBar);
@@ -24,12 +32,14 @@ const MotionBox = motion(Box);
 const MotionTypography = motion(Typography);
 const MotionChip = motion(Chip);
 const MotionToolbar = motion(Toolbar);
+const MotionIconButton = motion(IconButton);
 
-const Header = ({ emotionalState }) => {
+const Header = ({ emotionalState, darkMode, toggleDarkMode }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuAnchor, setMobileMenuAnchor] = useState(null);
 
   // Monitor scroll position to change header style
   useEffect(() => {
@@ -75,13 +85,66 @@ const Header = ({ emotionalState }) => {
     animate: { x: 0, opacity: 1, transition: { duration: 0.5 } }
   };
 
+  const iconButtonVariants = {
+    hover: { 
+      scale: 1.2, 
+      rotate: 5, 
+      transition: { type: "spring", stiffness: 400 } 
+    },
+    tap: { scale: 0.9 }
+  };
+
+  const handleMobileMenuOpen = (event) => {
+    setMobileMenuAnchor(event.currentTarget);
+  };
+
+  const handleMobileMenuClose = () => {
+    setMobileMenuAnchor(null);
+  };
+
+  // Notification button with pulse animation
+  const NotificationButton = () => (
+    <Tooltip title="Notifications">
+      <MotionIconButton
+        color="inherit"
+        sx={{ ml: 1 }}
+        whileHover="hover"
+        whileTap="tap"
+        variants={iconButtonVariants}
+      >
+        <Box sx={{ position: 'relative' }}>
+          <NotificationsIcon />
+          <Box 
+            component={motion.div}
+            initial={{ scale: 0 }}
+            animate={{ 
+              scale: [1, 1.3, 1],
+              transition: { repeat: 3, duration: 0.6 }
+            }}
+            sx={{
+              position: 'absolute',
+              top: -2,
+              right: -2,
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: 'error.main'
+            }}
+          />
+        </Box>
+      </MotionIconButton>
+    </Tooltip>
+  );
+  
   return (
     <MotionAppBar 
       position="sticky" 
       color="default" 
       elevation={scrolled ? 4 : 0}
       sx={{ 
-        bgcolor: scrolled ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.7)',
+        bgcolor: darkMode 
+          ? (scrolled ? 'rgba(18, 18, 18, 0.95)' : 'rgba(18, 18, 18, 0.7)')
+          : (scrolled ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.7)'),
         backdropFilter: 'blur(10px)',
         transition: 'all 0.3s ease'
       }}
@@ -112,20 +175,38 @@ const Header = ({ emotionalState }) => {
             }}
             sx={{ mr: 1, display: 'flex', alignItems: 'center' }}
           >
-            <SmartToyIcon color="primary" sx={{ fontSize: 32 }} />
+            <SmartToyIcon 
+              color="primary" 
+              sx={{ 
+                fontSize: 32,
+                filter: darkMode ? 'drop-shadow(0 0 2px rgba(33, 150, 243, 0.5))' : 'none'
+              }} 
+            />
           </MotionBox>
           <MotionTypography 
             variant={isMobile ? "h6" : "h5"} 
             component="div" 
-            sx={{ fontWeight: 'bold', background: 'linear-gradient(45deg, #2196f3, #21CBF3)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+            sx={{ 
+              fontWeight: 'bold', 
+              background: 'linear-gradient(45deg, #2196f3, #21CBF3)', 
+              WebkitBackgroundClip: 'text', 
+              WebkitTextFillColor: 'transparent',
+              textShadow: darkMode ? '0 0 10px rgba(33, 150, 243, 0.3)' : 'none'
+            }}
             whileHover={{ scale: 1.05 }}
           >
             RoboMind
           </MotionTypography>
         </MotionBox>
 
-        {/* Navigation menu */}
-        <MotionBox sx={{ display: 'flex', alignItems: 'center' }}>
+        {/* Navigation menu - Desktop */}
+        <MotionBox 
+          sx={{ 
+            display: { xs: 'none', md: 'flex' }, 
+            alignItems: 'center',
+            ml: 'auto'
+          }}
+        >
           {/* Emotion display */}
           <AnimatePresence mode="wait">
             {emotionalState && (
@@ -140,7 +221,7 @@ const Header = ({ emotionalState }) => {
                 label={emotionalState.emotion || 'Neutral'}
                 color={color}
                 size={isMobile ? 'small' : 'medium'}
-                sx={{ mr: 2, display: { xs: 'none', sm: 'flex' } }}
+                sx={{ mr: 2 }}
               />
             )}
           </AnimatePresence>
@@ -192,7 +273,85 @@ const Header = ({ emotionalState }) => {
               </Button>
             ))}
           </MotionBox>
+          
+          {/* Action buttons */}
+          <Box sx={{ display: 'flex', ml: 2 }}>
+            <NotificationButton />
+            
+            <Tooltip title={darkMode ? "Light Mode" : "Dark Mode"}>
+              <MotionIconButton 
+                color="inherit" 
+                onClick={toggleDarkMode}
+                sx={{ ml: 1 }}
+                whileHover="hover"
+                whileTap="tap"
+                variants={iconButtonVariants}
+              >
+                {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+              </MotionIconButton>
+            </Tooltip>
+          </Box>
         </MotionBox>
+
+        {/* Mobile menu button */}
+        <Box sx={{ display: { xs: 'flex', md: 'none' }, ml: 'auto' }}>
+          {emotionalState && emotionalState.emotion !== 'neutral' && (
+            <Chip
+              icon={icon}
+              label={emotionalState.emotion}
+              color={color}
+              size="small"
+              sx={{ mr: 1 }}
+            />
+          )}
+          <NotificationButton />
+          <Tooltip title={darkMode ? "Light Mode" : "Dark Mode"}>
+            <MotionIconButton 
+              color="inherit" 
+              onClick={toggleDarkMode}
+              sx={{ ml: 1 }}
+              whileHover="hover"
+              whileTap="tap"
+              variants={iconButtonVariants}
+            >
+              {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+            </MotionIconButton>
+          </Tooltip>
+          <IconButton 
+            color="inherit" 
+            edge="end" 
+            onClick={handleMobileMenuOpen}
+            sx={{ ml: 1 }}
+          >
+            <MoreVertIcon />
+          </IconButton>
+        </Box>
+
+        {/* Mobile menu */}
+        <Menu
+          anchorEl={mobileMenuAnchor}
+          open={Boolean(mobileMenuAnchor)}
+          onClose={handleMobileMenuClose}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        >
+          {[
+            { path: '/', label: 'Dashboard' },
+            { path: '/analysis', label: 'Emotion Analysis' },
+            { path: '/chat', label: 'Chat' },
+            { path: '/settings', label: 'Settings' }
+          ].map((item) => (
+            <MenuItem 
+              key={item.path} 
+              component={RouterLink} 
+              to={item.path}
+              onClick={handleMobileMenuClose}
+              selected={isActive(item.path)}
+            >
+              {item.label}
+            </MenuItem>
+          ))}
+        </Menu>
       </MotionToolbar>
     </MotionAppBar>
   );

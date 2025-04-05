@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Box, 
   Typography, 
@@ -8,10 +8,11 @@ import {
   Card, 
   CardContent, 
   CardActions,
-  Divider
+  Divider,
+  useTheme
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 
 // Icons
 import VideocamIcon from '@mui/icons-material/Videocam';
@@ -19,12 +20,14 @@ import ChatIcon from '@mui/icons-material/Chat';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 // Animated MUI components
 const MotionPaper = motion(Paper);
 const MotionBox = motion(Box);
 const MotionCard = motion(Card);
 const MotionTypography = motion(Typography);
+const MotionButton = motion(Button);
 
 // Animation variants
 const containerVariants = {
@@ -60,28 +63,93 @@ const pulseAnimation = {
   }
 };
 
-const Dashboard = ({ emotionalState }) => {
+// 3D Card component with tilt effect
+const Tilt3DCard = ({ children, depth = 5, className }) => {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  
+  // Transform mouse movement to rotation
+  const rotateX = useTransform(y, [-100, 100], [depth, -depth]);
+  const rotateY = useTransform(x, [-100, 100], [-depth, depth]);
+  
+  const handleMouseMove = (e) => {
+    // Get position of mouse relative to card
+    const rect = e.currentTarget.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Calculate distance from center (adjusted for sensitivity)
+    x.set((e.clientX - centerX) / 4);
+    y.set((e.clientY - centerY) / 4);
+  };
+  
+  const handleMouseLeave = () => {
+    // Reset to original position with a spring animation
+    x.set(0);
+    y.set(0);
+  };
+  
+  return (
+    <motion.div
+      style={{
+        perspective: 1000,
+        transformStyle: "preserve-3d",
+        width: "100%",
+        height: "100%"
+      }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      <motion.div
+        style={{
+          rotateX,
+          rotateY,
+          transformStyle: "preserve-3d",
+          width: "100%",
+          height: "100%"
+        }}
+        transition={{
+          type: "spring",
+          damping: 20,
+          stiffness: 300
+        }}
+      >
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const Dashboard = ({ emotionalState, darkMode }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const [activeCard, setActiveCard] = useState(null);
 
   // Quick actions
   const quickActions = [
     { 
+      id: 'emotion',
       title: 'Emotion Analysis', 
       description: 'Analyze your facial expressions and emotions in real-time using your webcam',
       icon: <VideocamIcon fontSize="large" color="primary" />,
-      action: () => navigate('/analysis')
+      action: () => navigate('/analysis'),
+      color: '#2196f3'
     },
     { 
+      id: 'chat',
       title: 'Chat with RoboMind', 
       description: 'Have a conversation about how you\'re feeling today',
       icon: <ChatIcon fontSize="large" color="primary" />,
-      action: () => navigate('/chat')
+      action: () => navigate('/chat'),
+      color: '#00bcd4'
     },
     { 
+      id: 'settings',
       title: 'Robot Settings', 
       description: 'Configure hardware settings, language options, and accessibility features',
       icon: <SettingsIcon fontSize="large" color="primary" />,
-      action: () => navigate('/settings')
+      action: () => navigate('/settings'),
+      color: '#9c27b0'
     },
   ];
 
@@ -159,13 +227,56 @@ const Dashboard = ({ emotionalState }) => {
               RoboMind uses AI to detect your emotional state and provides mental health support tailored to your needs.
               Start by trying out the emotion analysis with your webcam or simply chat with the robot.
             </MotionTypography>
+
+            <MotionBox
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              sx={{ mt: 3 }}
+            >
+              <MotionButton
+                variant="contained"
+                color="secondary"
+                size="large"
+                endIcon={<ArrowForwardIcon />}
+                onClick={() => navigate('/analysis')}
+                whileHover={{ 
+                  scale: 1.05,
+                  boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.2)"
+                }}
+                whileTap={{ scale: 0.95 }}
+                sx={{ 
+                  borderRadius: '50px',
+                  px: 3,
+                  backgroundColor: 'white',
+                  color: '#2196f3',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)'
+                  }
+                }}
+              >
+                Get Started
+              </MotionButton>
+            </MotionBox>
           </Grid>
           <Grid item xs={12} md={4} sx={{ textAlign: 'center' }}>
             <MotionBox
               component={motion.div}
               animate={pulseAnimation}
+              drag
+              dragConstraints={{
+                top: -10,
+                left: -10,
+                right: 10,
+                bottom: 10,
+              }}
+              dragTransition={{ bounceStiffness: 600, bounceDamping: 10 }}
             >
-              <SmartToyIcon sx={{ fontSize: 160, opacity: 0.9 }} />
+              <SmartToyIcon sx={{ 
+                fontSize: 160, 
+                opacity: 0.9,
+                filter: 'drop-shadow(0 0 15px rgba(0, 0, 0, 0.3))'
+              }} />
             </MotionBox>
           </Grid>
         </Grid>
@@ -183,11 +294,27 @@ const Dashboard = ({ emotionalState }) => {
             borderRadius: 2,
             border: '1px solid',
             borderColor: 'primary.light',
-            bgcolor: 'background.paper'
+            bgcolor: 'background.paper',
+            position: 'relative',
+            overflow: 'hidden'
           }}
           whileHover={{ scale: 1.01 }}
           transition={{ type: "spring", stiffness: 400, damping: 17 }}
         >
+          <MotionBox
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '5px',
+              background: 'linear-gradient(90deg, #2196f3, #21cbf3)'
+            }}
+            initial={{ scaleX: 0, transformOrigin: 'left' }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 1, delay: 0.5 }}
+          />
+        
           <Typography variant="h6" gutterBottom>
             Current Emotional State
           </Typography>
@@ -227,47 +354,115 @@ const Dashboard = ({ emotionalState }) => {
       <Grid container spacing={3}>
         {quickActions.map((action, index) => (
           <Grid item xs={12} sm={6} md={4} key={index}>
-            <MotionCard 
-              component={motion.div}
-              variants={itemVariants}
-              elevation={2} 
-              sx={{ 
-                height: '100%', 
-                display: 'flex', 
-                flexDirection: 'column',
-              }}
-              whileHover={{ 
-                scale: 1.05,
-                boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.1)"
-              }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <CardContent sx={{ flexGrow: 1 }}>
-                <MotionBox 
-                  sx={{ textAlign: 'center', mb: 2 }}
-                  whileHover={{ rotate: [0, -10, 10, -10, 0] }}
-                  transition={{ duration: 0.5 }}
-                >
-                  {action.icon}
-                </MotionBox>
-                <Typography variant="h6" component="h2" gutterBottom>
-                  {action.title}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {action.description}
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button 
-                  size="small" 
-                  color="primary" 
-                  onClick={action.action}
-                  sx={{ ml: 1, mb: 1 }}
-                >
-                  Open
-                </Button>
-              </CardActions>
-            </MotionCard>
+            <Tilt3DCard>
+              <MotionCard 
+                component={motion.div}
+                variants={itemVariants}
+                elevation={2} 
+                sx={{ 
+                  height: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  transformStyle: "preserve-3d",
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+                onMouseEnter={() => setActiveCard(action.id)}
+                onMouseLeave={() => setActiveCard(null)}
+                whileHover={{ 
+                  boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.15)"
+                }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <MotionBox
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '5px',
+                    background: `linear-gradient(90deg, ${action.color}, ${action.color}bb)`
+                  }}
+                />
+                <CardContent sx={{ flexGrow: 1, position: 'relative' }}>
+                  <MotionBox 
+                    sx={{
+                      textAlign: 'center',
+                      mb: 2,
+                      transformStyle: "preserve-3d",
+                      transform: "translateZ(20px)",
+                    }}
+                    whileHover={{ rotate: [0, -10, 10, -10, 0] }}
+                    animate={{
+                      y: activeCard === action.id ? [0, -5, 0] : 0
+                    }}
+                    transition={{
+                      duration: 0.5,
+                      repeat: activeCard === action.id ? 1 : 0
+                    }}
+                  >
+                    {action.icon}
+                  </MotionBox>
+                  <Typography 
+                    variant="h6" 
+                    component="h2" 
+                    gutterBottom
+                    sx={{
+                      transform: "translateZ(10px)",
+                      transformStyle: "preserve-3d",
+                    }}
+                  >
+                    {action.title}
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    color="text.secondary"
+                    sx={{
+                      transform: "translateZ(5px)",
+                      transformStyle: "preserve-3d",
+                    }}
+                  >
+                    {action.description}
+                  </Typography>
+                </CardContent>
+                <CardActions sx={{ position: 'relative' }}>
+                  <MotionButton 
+                    size="small" 
+                    color="primary" 
+                    onClick={action.action}
+                    sx={{ ml: 1, mb: 1 }}
+                    whileHover={{ 
+                      scale: 1.05,
+                      transition: { duration: 0.2 }
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Open
+                  </MotionButton>
+                </CardActions>
+
+                <AnimatePresence>
+                  {activeCard === action.id && (
+                    <MotionBox
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 0.07 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      sx={{
+                        position: 'absolute',
+                        top: -50,
+                        right: -50,
+                        width: 150,
+                        height: 150,
+                        borderRadius: '50%',
+                        background: action.color,
+                        zIndex: 0
+                      }}
+                    />
+                  )}
+                </AnimatePresence>
+              </MotionCard>
+            </Tilt3DCard>
           </Grid>
         ))}
       </Grid>
