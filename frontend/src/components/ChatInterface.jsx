@@ -26,8 +26,9 @@ import PersonIcon from '@mui/icons-material/Person';
 import MoodIcon from '@mui/icons-material/Mood';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import DeleteIcon from '@mui/icons-material/Delete';
 import API from '../utils/API';
-import dataStorage, { saveData, loadData, exportToJsonFile } from '../utils/dataStorage';
+import dataStorage, { saveData, loadData, exportToJsonFile, clearData } from '../utils/dataStorage';
 
 // Use STORAGE_KEYS from the imported module
 const { STORAGE_KEYS } = dataStorage;
@@ -218,6 +219,20 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
     exportToJsonFile(chatExport, 'echolens_chat_history.json');
   };
   
+  const handleClearChat = () => {
+    // Only keep the welcome message
+    const welcomeMessage = {
+      id: 1, 
+      text: "Hello! I'm EchoLens.AI, your emotion and sound aware assistant. How can I help you today?", 
+      sender: 'bot', 
+      emotion: 'neutral', 
+      timestamp: new Date()
+    };
+    
+    setMessages([welcomeMessage]);
+    clearData(STORAGE_KEYS.CHAT_HISTORY);
+  };
+  
   // Get background color for message bubble
   const getMessageBackground = (message) => {
     if (message.isError) return theme.palette.error.light;
@@ -298,6 +313,17 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
         </Box>
         
         <Box>
+          <Tooltip title="Clear chat history">
+            <IconButton 
+              color="inherit" 
+              onClick={handleClearChat}
+              disabled={messages.length <= 1}
+              sx={{ mr: 1 }}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Tooltip>
+          
           <Tooltip title="Export chat history to JSON">
             <IconButton 
               color="inherit" 
