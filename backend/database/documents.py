@@ -320,10 +320,10 @@ def get_chat_history(limit=20, user_id="default"):
 
 def clear_chat_history(user_id="default"):
     """
-    Clear chat history for a user.
+    Clear chat message history for a user.
     
     Args:
-        user_id (str): User identifier
+        user_id (str): User ID to clear messages for, or "all" for all users
     
     Returns:
         int: Number of deleted messages
@@ -331,13 +331,45 @@ def clear_chat_history(user_id="default"):
     try:
         collection = get_collection(CHAT_MESSAGES_COLLECTION)
         
-        # Delete all messages for the user
-        result = collection.delete_many({"user_id": user_id})
+        # Create filter for the user or all records
+        filter_query = {}
+        if user_id != "all":
+            filter_query["user_id"] = user_id
+            
+        # Delete matching records
+        result = collection.delete_many(filter_query)
         deleted_count = result.deleted_count
         
         logger.info(f"Cleared {deleted_count} chat messages for user {user_id}")
-        
         return deleted_count
     except Exception as e:
         logger.error(f"Error clearing chat history: {str(e)}")
+        raise
+
+def clear_transcriptions_from_db(user_id="default"):
+    """
+    Clear transcriptions from the database for a specific user or all users.
+    
+    Args:
+        user_id (str): User ID to clear transcriptions for, or "all" for all users
+    
+    Returns:
+        int: Number of deleted transcriptions
+    """
+    try:
+        collection = get_transcriptions_collection()
+        
+        # Create filter for the user or all records
+        filter_query = {}
+        if user_id != "all":
+            filter_query["user_id"] = user_id
+            
+        # Delete matching records
+        result = collection.delete_many(filter_query)
+        deleted_count = result.deleted_count
+        
+        logger.info(f"Cleared {deleted_count} transcriptions from database for user {user_id}")
+        return deleted_count
+    except Exception as e:
+        logger.error(f"Error clearing transcriptions from database: {str(e)}")
         raise

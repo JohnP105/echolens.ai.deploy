@@ -51,7 +51,8 @@ from database.documents import (
     save_detected_sound,
     get_sound_alerts as db_get_sound_alerts,
     save_transcription,
-    get_transcriptions as db_get_transcriptions
+    get_transcriptions as db_get_transcriptions,
+    clear_transcriptions_from_db
 )
 
 # Define log file path
@@ -764,6 +765,18 @@ def process_audio_chunk(use_demo_mode=None):
                 transcription = generate_demo_transcription()
                 mock_db["transcriptions"].append(transcription)
                 logger.info(f"Demo transcription: {transcription['text']}")
+                
+                # Store in MongoDB database if initialized
+                if db_initialized:
+                    try:
+                        save_transcription(
+                            text=transcription["text"],
+                            emotion=transcription["emotion"],
+                            source="demo"
+                        )
+                        logger.info(f"Saved demo transcription to database: {transcription['text'][:30]}...")
+                    except Exception as e:
+                        logger.error(f"Failed to save demo transcription to database: {str(e)}")
             
             # Randomly generate sound alert (15% chance each time)
             if random.random() < 0.15 and mock_db["user_preferences"]["sound_detection_enabled"]:
@@ -1114,6 +1127,34 @@ def clear_sound_alerts():
             "success": False
         }), 500
 
+@app.route('/api/transcriptions/clear', methods=['POST'])
+def clear_transcriptions():
+    """Clear transcriptions from the database"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id', 'default')
+        
+        if not db_initialized:
+            return jsonify({
+                "error": "Database not initialized",
+                "deleted": 0
+            }), 503
+        
+        deleted = clear_transcriptions_from_db(user_id)
+        
+        return jsonify({
+            "user_id": user_id,
+            "deleted": deleted,
+            "success": True
+        })
+    except Exception as e:
+        logger.error(f"Error clearing transcriptions: {str(e)}")
+        return jsonify({
+            "error": str(e),
+            "deleted": 0,
+            "success": False
+        }), 500
+
 @app.route('/api/clear-data', methods=['POST'])
 def clear_data():
     """Clear all transcriptions and sound alerts"""
@@ -1132,6 +1173,10 @@ def clear_data():
                 # Clear sound alerts
                 deleted_sounds = clear_sound_alerts_from_db("all")
                 logger.info(f"Cleared {deleted_sounds} sound alerts from database")
+                
+                # Clear transcriptions
+                deleted_transcriptions = clear_transcriptions_from_db("all")
+                logger.info(f"Cleared {deleted_transcriptions} transcriptions from database")
             except Exception as e:
                 logger.error(f"Error clearing database records: {str(e)}")
         
