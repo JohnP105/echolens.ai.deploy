@@ -73,6 +73,10 @@ function App() {
             margin: 0,
             padding: 0
           },
+          // Add smooth transition for all color changes
+          '*, *::before, *::after': {
+            transition: 'background-color 0.5s ease, border-color 0.5s ease, color 0.3s ease, box-shadow 0.3s ease',
+          },
         },
       },
     },

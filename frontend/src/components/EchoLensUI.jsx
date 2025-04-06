@@ -44,6 +44,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import AudioVisualization from './AudioVisualization';
 import ChatInterface from './ChatInterface';
 import Dashboard from './Dashboard';
+import Header, { PageTitle } from './Header';
 
 // Animated MUI components
 const MotionPaper = motion(Paper);
@@ -223,31 +224,10 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
         <MainContainer maxWidth="xl">
           {/* Only show title and description on Dashboard tab */}
           {activeTab === 0 && (
-          <Box sx={{ mb: 4, textAlign: 'center' }}>
-            <Typography 
-              variant="h3" 
-              component="h1" 
-              gutterBottom
-              sx={{ 
-                fontWeight: 'bold',
-                color: darkMode ? 'white' : 'rgba(0, 0, 0, 0.87)',
-                textShadow: darkMode ? '0 0 10px rgba(33, 150, 243, 0.5)' : 'none'
-              }}
-            >
-              EchoLens.AI - Audio Accessibility Tool
-            </Typography>
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                mb: 2,
-                maxWidth: 800,
-                mx: 'auto',
-                color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'
-              }}
-            >
-              An intelligent system to help deaf and hard of hearing users understand their audio environment.
-            </Typography>
-          </Box>
+            <PageTitle 
+              title="EchoLens.AI" 
+              subtitle="Audio Accessibility Tool" 
+            />
           )}
           
           {/* Tabs */}

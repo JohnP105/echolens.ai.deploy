@@ -13,9 +13,12 @@ import {
   Tooltip,
   Tab,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Container,
+  Paper
 } from '@mui/material';
 import { motion, useScroll, AnimatePresence } from 'framer-motion';
+import { keyframes } from '@mui/system';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import SentimentSatisfiedAltIcon from '@mui/icons-material/SentimentSatisfiedAlt';
@@ -26,10 +29,13 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import HearingIcon from '@mui/icons-material/Hearing';
 import HomeIcon from '@mui/icons-material/Home';
 import SettingsIcon from '@mui/icons-material/Settings';
+import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
+import HeadsetIcon from '@mui/icons-material/Headset';
 
 // Motion components
 const MotionBox = motion(Box);
 const MotionIconButton = motion(IconButton);
+const MotionPaper = motion(Paper);
 const MotionTab = ({ active, ...props }) => (
   <Tab 
     component={motion.div}
@@ -52,6 +58,159 @@ const MotionTab = ({ active, ...props }) => (
     {...props}
   />
 );
+
+// Create animated wave effect
+const waveAnimation = keyframes`
+  0% { transform: translateX(0) translateZ(0) scaleY(1); }
+  50% { transform: translateX(-25%) translateZ(0) scaleY(0.8); }
+  100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
+`;
+
+// Title component with animation
+const PageTitle = ({ title, subtitle }) => {
+  return (
+    <MotionBox
+      sx={{
+        position: 'relative',
+        mt: 2, 
+        mb: 4,
+        overflow: 'hidden',
+        borderRadius: 4,
+        maxWidth: '100%'
+      }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <MotionPaper
+        elevation={4}
+        sx={{
+          position: 'relative',
+          background: 'linear-gradient(135deg, #0d253f 0%, #103783 50%, #450d55 100%)',
+          padding: { xs: 3, md: 4 },
+          borderRadius: 4,
+          overflow: 'hidden'
+        }}
+      >
+        {/* Animated waves background */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: '200%',
+            height: '40%',
+            background: 'linear-gradient(180deg, rgba(33,150,243,0) 0%, rgba(33,150,243,0.1) 100%)',
+            backgroundSize: '50% 100%',
+            backgroundRepeat: 'repeat-x',
+            animation: `${waveAnimation} 15s linear infinite`,
+            opacity: 0.6,
+            zIndex: 0
+          }}
+        />
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 0,
+            left: '-25%',
+            width: '200%',
+            height: '30%',
+            background: 'linear-gradient(180deg, rgba(156,39,176,0) 0%, rgba(156,39,176,0.1) 100%)',
+            backgroundSize: '50% 100%',
+            backgroundRepeat: 'repeat-x',
+            animation: `${waveAnimation} 10s linear infinite`,
+            opacity: 0.4,
+            zIndex: 0
+          }}
+        />
+        
+        {/* Content */}
+        <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: { xs: 'column', sm: 'row' },
+              mb: 2
+            }}
+          >
+            <MotionBox
+              component={motion.div}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.5, type: "spring" }}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: '50%',
+                p: 1,
+                mr: { xs: 0, sm: 2 },
+                mb: { xs: 2, sm: 0 },
+                boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+              }}
+            >
+              <HeadsetIcon sx={{ fontSize: 40, color: '#2196f3' }} />
+            </MotionBox>
+            
+            <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
+              <Typography 
+                variant="h3" 
+                component="h1"
+                sx={{ 
+                  fontWeight: 800,
+                  background: 'linear-gradient(90deg, #2196f3, #f50057)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  mb: 1,
+                  fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' }
+                }}
+              >
+                EchoLens.AI
+              </Typography>
+              
+              <Typography 
+                variant="h6"
+                sx={{ 
+                  color: 'white',
+                  fontWeight: 400,
+                  textShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                  opacity: 0.9,
+                  fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' }
+                }}
+              >
+                Audio Accessibility Tool
+              </Typography>
+            </Box>
+          </Box>
+          
+          <MotionBox
+            component={motion.div}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <Typography 
+              variant="body1" 
+              sx={{ 
+                color: 'rgba(255,255,255,0.85)', 
+                textAlign: 'center',
+                maxWidth: '800px',
+                mx: 'auto',
+                lineHeight: 1.6,
+                fontSize: { xs: '0.9rem', md: '1rem' }
+              }}
+            >
+              An intelligent system to help deaf and hard of hearing users understand their audio environment.
+            </Typography>
+          </MotionBox>
+        </Container>
+      </MotionPaper>
+    </MotionBox>
+  );
+};
 
 const Header = ({ emotionalState, darkMode, toggleDarkMode }) => {
   const theme = useTheme();
@@ -310,4 +469,6 @@ const Header = ({ emotionalState, darkMode, toggleDarkMode }) => {
   );
 };
 
+// Export both components
+export { PageTitle };
 export default Header; 

@@ -160,36 +160,44 @@ const Dashboard = ({ emotionalState, darkMode, setActiveTab }) => {
       initial="hidden"
       animate="visible"
       exit="exit"
+      sx={{ width: '100%' }}
     >
-      {/* Hero section */}
+      {/* Enhanced Hero section */}
       <MotionPaper 
         component={motion.div}
         variants={itemVariants}
         elevation={0}
         sx={{ 
-          p: 4, 
+          p: { xs: 3, md: 4 }, 
           mb: 4, 
           borderRadius: 4,
-          background: 'linear-gradient(120deg, #2196f3 0%, #21cbf3 100%)',
+          background: `linear-gradient(135deg, 
+            ${theme.palette.primary.dark} 0%, 
+            ${theme.palette.primary.main} 40%, 
+            ${theme.palette.primary.light} 100%)`,
           color: 'white',
           overflow: 'hidden',
-          position: 'relative'
+          position: 'relative',
+          minHeight: '220px'
         }}
       >
+        {/* Dynamic background elements */}
         <MotionBox
           component={motion.div}
           sx={{
             position: 'absolute',
-            top: -100,
-            right: -100,
-            width: 300,
-            height: 300,
+            top: '-10%',
+            right: '-5%',
+            width: '300px',
+            height: '300px',
             borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.1)',
+            background: 'radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)',
+            filter: 'blur(20px)',
+            zIndex: 0
           }}
           animate={{
-            x: [0, 10, 0],
-            y: [0, 15, 0],
+            scale: [1, 1.2, 1],
+            opacity: [0.5, 0.7, 0.5],
           }}
           transition={{
             duration: 8,
@@ -198,38 +206,198 @@ const Dashboard = ({ emotionalState, darkMode, setActiveTab }) => {
           }}
         />
         
-        <Grid container spacing={3} alignItems="center">
+        {/* Animated circles */}
+        {[...Array(5)].map((_, i) => (
+          <MotionBox
+            key={`circle-${i}`}
+            component={motion.div}
+            sx={{
+              position: 'absolute',
+              width: 20 + i * 10,
+              height: 20 + i * 10,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.1)',
+              zIndex: 0
+            }}
+            initial={{ 
+              x: Math.random() * 100 - 50,
+              y: Math.random() * 100 - 50,
+              opacity: 0.3 + Math.random() * 0.4
+            }}
+            animate={{ 
+              x: [Math.random() * 100 - 50, Math.random() * 100 - 50],
+              y: [Math.random() * 100 - 50, Math.random() * 100 - 50],
+              opacity: [0.3 + Math.random() * 0.4, 0.6 + Math.random() * 0.4]
+            }}
+            transition={{
+              duration: 12 + i * 4,
+              repeat: Infinity,
+              repeatType: "reverse",
+              ease: "easeInOut"
+            }}
+          />
+        ))}
+        
+        {/* Sound wave effect */}
+        <MotionBox
+          component={motion.div}
+          sx={{
+            position: 'absolute',
+            bottom: '10%',
+            left: 0,
+            right: 0,
+            height: '2px',
+            background: 'rgba(255,255,255,0.3)',
+            zIndex: 0
+          }}
+          animate={{
+            height: ['2px', '30px', '2px'],
+            opacity: [0.3, 0.6, 0.3]
+          }}
+          transition={{
+            duration: 2.5,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
+        
+        <Grid container spacing={3} alignItems="center" sx={{ position: 'relative', zIndex: 1 }}>
           <Grid item xs={12} md={8}>
             <MotionTypography 
               variant="h3" 
               gutterBottom 
               fontWeight="bold"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              sx={{ 
+                fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+                textShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                position: 'relative'
+              }}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              Welcome to EchoLens.AI
+              Welcome to{" "}
+              <Box 
+                component="span" 
+                sx={{ 
+                  position: 'relative',
+                  display: 'inline-block'
+                }}
+              >
+                EchoLens
+                <MotionBox 
+                  component={motion.div}
+                  animate={{ 
+                    width: ['0%', '100%', '0%']
+                  }}
+                  transition={{ 
+                    duration: 3,
+                    repeat: Infinity,
+                    repeatDelay: 5
+                  }}
+                  sx={{
+                    position: 'absolute',
+                    height: '5px',
+                    bottom: 0,
+                    left: 0,
+                    background: 'rgba(255,255,255,0.8)',
+                    borderRadius: '2px'
+                  }}
+                />
+              </Box>
+              <Box component="span" sx={{ color: theme.palette.secondary.light }}>.AI</Box>
             </MotionTypography>
+            
             <MotionTypography 
               variant="h5"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              sx={{ 
+                opacity: 0.9, 
+                mb: 2,
+                fontSize: { xs: '1.2rem', sm: '1.4rem', md: '1.5rem' }
+              }}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
             >
-              Your Sound & Emotion Translator
+              <MotionBox
+                component="span"
+                animate={{ 
+                  color: [
+                    theme.palette.secondary.light, 
+                    theme.palette.secondary.main, 
+                    'white', 
+                    theme.palette.secondary.light
+                  ]
+                }}
+                transition={{ duration: 8, repeat: Infinity }}
+              >
+                Your Sound & Emotion Translator
+              </MotionBox>
             </MotionTypography>
+            
             <MotionTypography 
               variant="body1" 
-              sx={{ mt: 2 }}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              sx={{ 
+                mt: 2,
+                maxWidth: '90%',
+                opacity: 0.9,
+                lineHeight: 1.6
+              }}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
             >
               EchoLens.AI uses advanced AI to detect environmental sounds and emotional tones, providing real-time 
               translations for Deaf and hard-of-hearing users. Try both the speech recognition and spatial sound detection features.
             </MotionTypography>
+            
+            <MotionBox
+              sx={{ mt: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+            >
+              <MotionButton
+                variant="contained"
+                color="secondary"
+                size="large"
+                onClick={() => setActiveTab(1)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                sx={{ 
+                  borderRadius: '20px',
+                  px: 3
+                }}
+              >
+                Start Listening
+              </MotionButton>
+              
+              <MotionButton
+                variant="outlined"
+                size="large"
+                onClick={() => setActiveTab(3)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                sx={{ 
+                  borderRadius: '20px',
+                  px: 3,
+                  borderColor: 'rgba(255,255,255,0.5)',
+                  color: 'white',
+                  '&:hover': {
+                    borderColor: 'white',
+                    backgroundColor: 'rgba(255,255,255,0.1)'
+                  }
+                }}
+              >
+                AI Assistant
+              </MotionButton>
+            </MotionBox>
           </Grid>
-          <Grid item xs={12} md={4} sx={{ textAlign: 'center' }}>
+          
+          <Grid item xs={12} md={4} sx={{ 
+            textAlign: 'center',
+            display: { xs: 'none', sm: 'block' } 
+          }}>
             <MotionBox
               component={motion.div}
               animate={pulseAnimation}
@@ -241,74 +409,60 @@ const Dashboard = ({ emotionalState, darkMode, setActiveTab }) => {
                 bottom: 10,
               }}
               dragTransition={{ bounceStiffness: 600, bounceDamping: 10 }}
+              whileHover={{ 
+                rotate: [0, -5, 5, -5, 0],
+                transition: { duration: 0.5 }
+              }}
+              sx={{
+                position: 'relative',
+                zIndex: 1
+              }}
             >
               <SmartToyIcon sx={{ 
-                fontSize: 160, 
+                fontSize: { xs: 100, sm: 130, md: 160 }, 
                 opacity: 0.9,
                 filter: 'drop-shadow(0 0 15px rgba(0, 0, 0, 0.3))'
               }} />
+              
+              {/* Orbit effect around the icon */}
+              <MotionBox
+                component={motion.div}
+                animate={{ rotate: 360 }}
+                transition={{ 
+                  duration: 8,
+                  repeat: Infinity,
+                  ease: "linear"
+                }}
+                sx={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  width: 200,
+                  height: 200,
+                  borderRadius: '50%',
+                  border: '1px dashed rgba(255,255,255,0.3)',
+                  transform: 'translate(-50%, -50%)'
+                }}
+              >
+                <MotionBox
+                  component={motion.div}
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: '50%',
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    backgroundColor: theme.palette.secondary.main,
+                    transform: 'translateX(-50%)',
+                    boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+                  }}
+                />
+              </MotionBox>
             </MotionBox>
           </Grid>
         </Grid>
       </MotionPaper>
-
-      {/* Emotional state feedback (only shown when relevant) */}
-      {emotionalState && emotionalState.emotion && emotionalState.emotion !== 'neutral' && (
-        <MotionPaper 
-          component={motion.div}
-          variants={itemVariants}
-          elevation={3} 
-          sx={{ 
-            p: 3, 
-            mb: 4, 
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: 'primary.light',
-            bgcolor: 'background.paper',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          whileHover={{ scale: 1.01 }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
-        >
-          <MotionBox
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '5px',
-              background: 'linear-gradient(90deg, #2196f3, #21cbf3)'
-            }}
-            initial={{ scaleX: 0, transformOrigin: 'left' }}
-            animate={{ scaleX: 1 }}
-            transition={{ duration: 1, delay: 0.5 }}
-          />
-        
-          <Typography variant="h6" gutterBottom>
-            Emotion Detected
-          </Typography>
-          <Typography variant="body1">
-            Current emotion: <strong>{emotionalState.emotion}</strong> ({emotionalState.intensity || 'medium'} intensity)
-          </Typography>
-          <MotionBox
-            component={motion.div}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            sx={{ mt: 2 }}
-          >
-            <Button 
-              variant="contained" 
-              color="primary"
-              size="small"
-              onClick={() => setActiveTab && setActiveTab(3)}
-              endIcon={<ArrowForwardIcon />}
-            >
-              Explore with AI Assistant
-            </Button>
-          </MotionBox>
-        </MotionPaper>
-      )}
 
       {/* Main features section */}
       <MotionTypography 
