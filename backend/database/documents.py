@@ -220,6 +220,45 @@ def get_sound_alerts(limit=10, page=1, priority=None, sound_type=None, user_id=N
         logger.error(f"Error getting sound alerts: {str(e)}")
         raise
 
+def save_detected_sound(sound, confidence, direction, angle, user_id=None):
+    """
+    Save a detected sound to the database using the format from real-time detection.
+    
+    Args:
+        sound (str): Name of the detected sound
+        confidence (float): Confidence level (0-1)
+        direction (str): Direction of the sound (left, right, center)
+        angle (float): Angle of the sound source
+        user_id (str, optional): User ID if applicable
+    
+    Returns:
+        ObjectId: ID of the inserted document
+    """
+    try:
+        collection = get_sound_alerts_collection()
+        
+        # Create document
+        document = {
+            "sound": sound,
+            "confidence": confidence,
+            "direction": direction,
+            "angle": angle,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Add user_id if provided
+        if user_id:
+            document["user_id"] = user_id
+            
+        # Insert document
+        result = collection.insert_one(document)
+        logger.info(f"Saved detected sound: '{sound}' with confidence {confidence:.2f} from {direction}")
+        
+        return result.inserted_id
+    except Exception as e:
+        logger.error(f"Error saving detected sound: {str(e)}")
+        raise
+
 # Functions for User Preferences
 def get_user_preferences(user_id="default"):
     """

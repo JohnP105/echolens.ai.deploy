@@ -44,7 +44,15 @@ import tensorflow_hub as hub
 
 # Import database functions
 from database.dbclient import get_db, get_collection
-from database.documents import save_chat_message, get_chat_history, clear_chat_history
+from database.documents import (
+    save_chat_message, 
+    get_chat_history, 
+    clear_chat_history,
+    save_detected_sound,
+    get_sound_alerts as db_get_sound_alerts,
+    save_transcription,
+    get_transcriptions as db_get_transcriptions
+)
 
 # Define log file path
 log_file_path = os.path.join(os.path.dirname(__file__), 'echolens.log')
@@ -762,6 +770,18 @@ def process_audio_chunk(use_demo_mode=None):
                 sound_alert = generate_demo_sound_alert()
                 mock_db["sound_alerts"].append(sound_alert)
                 logger.info(f"Demo sound detected: {sound_alert['sound']} from {sound_alert['direction']}")
+                
+                # Store in MongoDB database if initialized
+                if db_initialized:
+                    try:
+                        save_detected_sound(
+                            sound=sound_alert["sound"],
+                            confidence=sound_alert["confidence"],
+                            direction=sound_alert["direction"],
+                            angle=sound_alert["angle"]
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to save demo sound alert to database: {str(e)}")
             
             return True
             
@@ -799,6 +819,18 @@ def process_audio_chunk(use_demo_mode=None):
                     }
                     mock_db["sound_alerts"].append(sound_alert)
                     logger.info(f"Sound detected: {sound['sound']} from {direction_info['direction']}")
+                    
+                    # Store in MongoDB database if initialized
+                    if db_initialized:
+                        try:
+                            save_detected_sound(
+                                sound=sound["sound"], 
+                                confidence=sound["confidence"],
+                                direction=direction_info["direction"],
+                                angle=direction_info["angle"]
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to save detected sound to database: {str(e)}")
         
         # Speech recognition (in a separate thread to avoid blocking)
         if (mock_db["user_preferences"]["transcription_enabled"] and 
@@ -847,8 +879,22 @@ def process_speech(audio_data):
                 "explanation": emotion_analysis.get("explanation", "")
             }
             
+            # Add to in-memory storage
             mock_db["transcriptions"].append(transcription)
             logger.info(f"Transcribed: {text}")
+            
+            # Save to database if initialized
+            if db_initialized:
+                try:
+                    # Save to database with emotional data
+                    save_transcription(
+                        text=text,
+                        emotion=emotion_analysis.get("emotion", "neutral"),
+                        source="automatic"
+                    )
+                    logger.info(f"Saved transcription to database: {text[:30]}...")
+                except Exception as e:
+                    logger.error(f"Error saving transcription to database: {str(e)}")
             
             return transcription
     except sr.UnknownValueError:
@@ -923,6 +969,12 @@ def init_database():
         chat_collection = get_collection("chat_messages")
         chat_collection.create_index([("timestamp", -1)])
         chat_collection.create_index([("user_id", 1)])
+        
+        # Create indexes for sound alerts
+        sound_collection = get_collection("sound_alerts")
+        sound_collection.create_index([("timestamp", -1)])
+        sound_collection.create_index([("user_id", 1)])
+        sound_collection.create_index([("sound", 1)])
         
         logger.info("========== Database Initialization Successful ==========")
         return True
@@ -1034,6 +1086,34 @@ def set_demo_mode():
             'demo_mode': demo_mode
         })
 
+@app.route('/api/sounds/clear', methods=['POST'])
+def clear_sound_alerts():
+    """Clear sound alerts from the database"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id', 'default')
+        
+        if not db_initialized:
+            return jsonify({
+                "error": "Database not initialized",
+                "deleted": 0
+            }), 503
+        
+        deleted = clear_sound_alerts_from_db(user_id)
+        
+        return jsonify({
+            "user_id": user_id,
+            "deleted": deleted,
+            "success": True
+        })
+    except Exception as e:
+        logger.error(f"Error clearing sound alerts: {str(e)}")
+        return jsonify({
+            "error": str(e),
+            "deleted": 0,
+            "success": False
+        }), 500
+
 @app.route('/api/clear-data', methods=['POST'])
 def clear_data():
     """Clear all transcriptions and sound alerts"""
@@ -1041,6 +1121,20 @@ def clear_data():
         # Clear the transcriptions and sound alerts in mock_db
         mock_db["transcriptions"] = []
         mock_db["sound_alerts"] = []
+        
+        # Clear database records if database is initialized
+        if db_initialized:
+            try:
+                # Clear chat messages
+                deleted_chats = clear_chat_history("all")
+                logger.info(f"Cleared {deleted_chats} chat messages from database")
+                
+                # Clear sound alerts
+                deleted_sounds = clear_sound_alerts_from_db("all")
+                logger.info(f"Cleared {deleted_sounds} sound alerts from database")
+            except Exception as e:
+                logger.error(f"Error clearing database records: {str(e)}")
+        
         logger.info("Data cleared successfully")
         return jsonify({"success": True})
     except Exception as e:
@@ -1099,24 +1193,63 @@ def stop_processing():
 @app.route('/api/transcriptions', methods=['GET'])
 def get_transcriptions():
     """Get recent transcriptions"""
-    # Get limit parameter with default
+    # Get parameters with defaults
     limit = request.args.get('limit', default=10, type=int)
+    page = request.args.get('page', default=1, type=int)
+    emotion = request.args.get('emotion', default=None, type=str)
+    
+    # Check if we should use the database or in-memory storage
+    if db_initialized:
+        try:
+            # Get transcriptions from database with pagination and filtering
+            result = db_get_transcriptions(limit=limit, page=page, emotion=emotion)
+            
+            # Return the results
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"Error getting transcriptions from database: {str(e)}")
+            # Fall back to in-memory storage if database fails
+    
+    # Use in-memory storage as fallback
+    # Filter by emotion if specified
+    filtered_transcriptions = mock_db["transcriptions"]
+    if emotion:
+        filtered_transcriptions = [t for t in filtered_transcriptions if t.get("emotion") == emotion]
     
     # Return most recent transcriptions first
     transcriptions = sorted(
-        mock_db["transcriptions"], 
+        filtered_transcriptions, 
         key=lambda x: x["timestamp"], 
         reverse=True
     )[:limit]
     
-    return jsonify(transcriptions)
+    return jsonify({
+        "total": len(filtered_transcriptions),
+        "page": page,
+        "limit": limit,
+        "transcriptions": transcriptions
+    })
 
 @app.route('/api/sounds', methods=['GET'])
 def get_sound_alerts():
     """Get recent sound alerts"""
-    # Get limit parameter with default
+    # Get parameters with defaults
     limit = request.args.get('limit', default=10, type=int)
+    page = request.args.get('page', default=1, type=int)
     
+    # Check if we should use the database or in-memory storage
+    if db_initialized:
+        try:
+            # Get sound alerts from database with pagination
+            result = db_get_sound_alerts(limit=limit, page=page)
+            
+            # Return the results
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"Error getting sound alerts from database: {str(e)}")
+            # Fall back to in-memory storage if database fails
+    
+    # Use in-memory storage as fallback
     # Return most recent sound alerts first
     alerts = sorted(
         mock_db["sound_alerts"], 
@@ -1124,7 +1257,12 @@ def get_sound_alerts():
         reverse=True
     )[:limit]
     
-    return jsonify(alerts)
+    return jsonify({
+        "total": len(mock_db["sound_alerts"]),
+        "page": page,
+        "limit": limit,
+        "soundAlerts": alerts
+    })
 
 @app.route('/api/preferences', methods=['GET', 'PUT'])
 def manage_preferences():
@@ -1503,6 +1641,27 @@ def video_stream():
     
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# Clear sound alerts from database
+def clear_sound_alerts_from_db(user_id="default"):
+    """Clear sound alerts from the database for a specific user"""
+    try:
+        collection = get_collection("sound_alerts")
+        
+        # Create filter for the user or all records if no user_id
+        filter_query = {}
+        if user_id != "all":
+            filter_query["user_id"] = user_id
+            
+        # Delete matching records
+        result = collection.delete_many(filter_query)
+        deleted_count = result.deleted_count
+        
+        logger.info(f"Cleared {deleted_count} sound alerts from database for user {user_id}")
+        return deleted_count
+    except Exception as e:
+        logger.error(f"Error clearing sound alerts from database: {str(e)}")
+        return 0
 
 if __name__ == '__main__':
     # Initialize database
