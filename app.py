@@ -36,13 +36,20 @@ def start_backend_server(debug=False, port=5000):
         # Log environment variables (redacted for security)
         logger.info(f"GOOGLE_API_KEY set: {'Yes' if os.environ.get('GOOGLE_API_KEY') else 'No'}")
         
-        backend_cmd = f"python -m backend.echolens_api"
+        # Change to backend directory to ensure correct imports
+        backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+        env_vars = os.environ.copy()
+        env_vars["FLASK_APP"] = "echolens_api.py"
+        env_vars["FLASK_ENV"] = "development" if debug else "production"
+        env_vars["PORT"] = str(port)
         
         # Use different command based on platform
         if platform.system() == "Windows":
-            return subprocess.Popen(backend_cmd, shell=True, env=os.environ.copy())
+            return subprocess.Popen(f"cd {backend_dir} && python echolens_api.py", 
+                                    shell=True, env=env_vars)
         else:
-            return subprocess.Popen(["python", "-m", "backend.echolens_api"], env=os.environ.copy())
+            return subprocess.Popen(["python", os.path.join(backend_dir, "echolens_api.py")], 
+                                    env=env_vars)
             
     except Exception as e:
         logger.error(f"Failed to start backend server: {str(e)}")

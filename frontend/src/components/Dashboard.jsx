@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
   Box, 
   Typography, 
@@ -12,15 +12,15 @@ import {
   useTheme
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 
 // Icons
-import VideocamIcon from '@mui/icons-material/Videocam';
+import HearingIcon from '@mui/icons-material/Hearing';
+import SurroundSoundIcon from '@mui/icons-material/SurroundSound';
 import ChatIcon from '@mui/icons-material/Chat';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
-import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
-import SettingsIcon from '@mui/icons-material/Settings';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
 
 // Animated MUI components
 const MotionPaper = motion(Paper);
@@ -64,7 +64,7 @@ const pulseAnimation = {
 };
 
 // 3D Card component with tilt effect
-const Tilt3DCard = ({ children, depth = 5, className }) => {
+const Tilt3DCard = ({ children, depth = 5 }) => {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   
@@ -120,37 +120,37 @@ const Tilt3DCard = ({ children, depth = 5, className }) => {
   );
 };
 
-const Dashboard = ({ emotionalState, darkMode }) => {
+const Dashboard = ({ emotionalState, darkMode, setActiveTab }) => {
   const navigate = useNavigate();
   const theme = useTheme();
   const [activeCard, setActiveCard] = useState(null);
 
-  // Quick actions
-  const quickActions = [
+  // Main action cards
+  const mainFeatures = [
     { 
-      id: 'emotion',
-      title: 'Emotion Analysis', 
-      description: 'Analyze your facial expressions and emotions in real-time using your webcam',
-      icon: <VideocamIcon fontSize="large" color="primary" />,
-      action: () => navigate('/analysis'),
+      id: 'speech',
+      title: 'Speech Recognition', 
+      description: 'Transcribe spoken language and detect emotional tone in real-time',
+      icon: <HearingIcon fontSize="large" color="primary" />,
+      tabIndex: 1,
       color: '#2196f3'
     },
     { 
-      id: 'chat',
-      title: 'Chat with RoboMind', 
-      description: 'Have a conversation about how you\'re feeling today',
-      icon: <ChatIcon fontSize="large" color="primary" />,
-      action: () => navigate('/chat'),
-      color: '#00bcd4'
-    },
-    { 
-      id: 'settings',
-      title: 'Robot Settings', 
-      description: 'Configure hardware settings, language options, and accessibility features',
-      icon: <SettingsIcon fontSize="large" color="primary" />,
-      action: () => navigate('/settings'),
+      id: 'spatial',
+      title: 'Sound Detection', 
+      description: 'Identify important sounds in your environment and their direction',
+      icon: <SurroundSoundIcon fontSize="large" color="primary" />,
+      tabIndex: 2,
       color: '#9c27b0'
     },
+    { 
+      id: 'chat',
+      title: 'AI Assistant', 
+      description: 'Get support and learn more about your audio environment',
+      icon: <ChatIcon fontSize="large" color="primary" />,
+      tabIndex: 3,
+      color: '#ff5722'
+    }
   ];
 
   return (
@@ -161,6 +161,7 @@ const Dashboard = ({ emotionalState, darkMode }) => {
       animate="visible"
       exit="exit"
     >
+      {/* Hero section */}
       <MotionPaper 
         component={motion.div}
         variants={itemVariants}
@@ -225,40 +226,8 @@ const Dashboard = ({ emotionalState, darkMode }) => {
               transition={{ duration: 0.5, delay: 0.4 }}
             >
               EchoLens.AI uses advanced AI to detect environmental sounds and emotional tones, providing real-time 
-              translations for Deaf and hard-of-hearing users.
-              Start by exploring sound detection or try out the emotion analysis features.
+              translations for Deaf and hard-of-hearing users. Try both the speech recognition and spatial sound detection features.
             </MotionTypography>
-
-            <MotionBox
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              sx={{ mt: 3 }}
-            >
-              <MotionButton
-                variant="contained"
-                color="secondary"
-                size="large"
-                endIcon={<ArrowForwardIcon />}
-                onClick={() => navigate('/analysis')}
-                whileHover={{ 
-                  scale: 1.05,
-                  boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.2)"
-                }}
-                whileTap={{ scale: 0.95 }}
-                sx={{ 
-                  borderRadius: '50px',
-                  px: 3,
-                  backgroundColor: 'white',
-                  color: '#2196f3',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)'
-                  }
-                }}
-              >
-                Get Started
-              </MotionButton>
-            </MotionBox>
           </Grid>
           <Grid item xs={12} md={4} sx={{ textAlign: 'center' }}>
             <MotionBox
@@ -283,8 +252,8 @@ const Dashboard = ({ emotionalState, darkMode }) => {
         </Grid>
       </MotionPaper>
 
-      {/* Current emotional state */}
-      {emotionalState && emotionalState.emotion !== 'neutral' && (
+      {/* Emotional state feedback (only shown when relevant) */}
+      {emotionalState && emotionalState.emotion && emotionalState.emotion !== 'neutral' && (
         <MotionPaper 
           component={motion.div}
           variants={itemVariants}
@@ -317,43 +286,42 @@ const Dashboard = ({ emotionalState, darkMode }) => {
           />
         
           <Typography variant="h6" gutterBottom>
-            Current Emotional State
+            Emotion Detected
           </Typography>
           <Typography variant="body1">
-            I've detected that you might be feeling <strong>{emotionalState.emotion}</strong> with a {emotionalState.intensity} intensity.
-            {emotionalState.emotion === 'happy' ? 
-              " That's wonderful! Would you like to explore activities that can sustain this positive feeling?" :
-              " Would you like some suggestions to help with this emotion?"}
+            Current emotion: <strong>{emotionalState.emotion}</strong> ({emotionalState.intensity || 'medium'} intensity)
           </Typography>
           <MotionBox
             component={motion.div}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            sx={{ mt: 2 }}
           >
             <Button 
               variant="contained" 
-              color="primary" 
-              sx={{ mt: 2 }}
-              onClick={() => navigate('/chat')}
+              color="primary"
+              size="small"
+              onClick={() => setActiveTab && setActiveTab(3)}
+              endIcon={<ArrowForwardIcon />}
             >
-              Get Support
+              Explore with AI Assistant
             </Button>
           </MotionBox>
         </MotionPaper>
       )}
 
-      {/* Quick actions */}
+      {/* Main features section */}
       <MotionTypography 
         component={motion.div}
         variants={itemVariants}
-        variant="h4" 
+        variant="h5" 
         gutterBottom 
-        sx={{ mt: 4, mb: 3 }}
+        sx={{ mt: 4, mb: 3, fontWeight: 'bold' }}
       >
-        Quick Actions
+        Main Features
       </MotionTypography>
       <Grid container spacing={3}>
-        {quickActions.map((action, index) => (
+        {mainFeatures.map((feature, index) => (
           <Grid item xs={12} sm={6} md={4} key={index}>
             <Tilt3DCard>
               <MotionCard 
@@ -366,9 +334,11 @@ const Dashboard = ({ emotionalState, darkMode }) => {
                   flexDirection: 'column',
                   transformStyle: "preserve-3d",
                   position: 'relative',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  cursor: 'pointer'
                 }}
-                onMouseEnter={() => setActiveCard(action.id)}
+                onClick={() => setActiveTab && setActiveTab(feature.tabIndex)}
+                onMouseEnter={() => setActiveCard(feature.id)}
                 onMouseLeave={() => setActiveCard(null)}
                 whileHover={{ 
                   boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.15)"
@@ -382,7 +352,7 @@ const Dashboard = ({ emotionalState, darkMode }) => {
                     left: 0,
                     width: '100%',
                     height: '5px',
-                    background: `linear-gradient(90deg, ${action.color}, ${action.color}bb)`
+                    background: `linear-gradient(90deg, ${feature.color}, ${feature.color}bb)`
                   }}
                 />
                 <CardContent sx={{ flexGrow: 1, position: 'relative' }}>
@@ -395,14 +365,14 @@ const Dashboard = ({ emotionalState, darkMode }) => {
                     }}
                     whileHover={{ rotate: [0, -10, 10, -10, 0] }}
                     animate={{
-                      y: activeCard === action.id ? [0, -5, 0] : 0
+                      y: activeCard === feature.id ? [0, -5, 0] : 0
                     }}
                     transition={{
                       duration: 0.5,
-                      repeat: activeCard === action.id ? 1 : 0
+                      repeat: activeCard === feature.id ? 1 : 0
                     }}
                   >
-                    {action.icon}
+                    {feature.icon}
                   </MotionBox>
                   <Typography 
                     variant="h6" 
@@ -413,7 +383,7 @@ const Dashboard = ({ emotionalState, darkMode }) => {
                       transformStyle: "preserve-3d",
                     }}
                   >
-                    {action.title}
+                    {feature.title}
                   </Typography>
                   <Typography 
                     variant="body2" 
@@ -423,52 +393,32 @@ const Dashboard = ({ emotionalState, darkMode }) => {
                       transformStyle: "preserve-3d",
                     }}
                   >
-                    {action.description}
+                    {feature.description}
                   </Typography>
                 </CardContent>
                 <CardActions sx={{ position: 'relative' }}>
                   <MotionButton 
                     size="small" 
                     color="primary" 
-                    onClick={action.action}
+                    onClick={() => setActiveTab && setActiveTab(feature.tabIndex)}
                     sx={{ ml: 1, mb: 1 }}
                     whileHover={{ 
                       scale: 1.05,
                       transition: { duration: 0.2 }
                     }}
                     whileTap={{ scale: 0.95 }}
+                    endIcon={<ArrowForwardIcon />}
                   >
                     Open
                   </MotionButton>
                 </CardActions>
-
-                <AnimatePresence>
-                  {activeCard === action.id && (
-                    <MotionBox
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 0.07 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      sx={{
-                        position: 'absolute',
-                        top: -50,
-                        right: -50,
-                        width: 150,
-                        height: 150,
-                        borderRadius: '50%',
-                        background: action.color,
-                        zIndex: 0
-                      }}
-                    />
-                  )}
-                </AnimatePresence>
               </MotionCard>
             </Tilt3DCard>
           </Grid>
         ))}
       </Grid>
 
-      {/* About section */}
+      {/* About section - simplified */}
       <MotionPaper 
         component={motion.div}
         variants={itemVariants}
@@ -476,28 +426,13 @@ const Dashboard = ({ emotionalState, darkMode }) => {
         sx={{ p: 3, mt: 4, borderRadius: 2 }}
         whileHover={{ boxShadow: "0px 8px 25px rgba(0, 0, 0, 0.08)" }}
       >
-        <Typography variant="h5" gutterBottom>
+        <Typography variant="h5" gutterBottom fontWeight="bold">
           About EchoLens.AI
         </Typography>
         <Divider sx={{ mb: 2 }} />
-        <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="body1" paragraph>
-              EchoLens.AI is an advanced sound and emotion translator designed to support Deaf and hard-of-hearing users through real-time environmental sound detection and emotional tone recognition.
-            </Typography>
-            <Typography variant="body1" paragraph>
-              Using state-of-the-art technology powered by the Gemini API, EchoLens.AI can analyze audio signals, voice patterns, and text to provide contextual information about the surrounding environment.
-            </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="body1" paragraph>
-              We're committed to accessibility and inclusion, with features designed specifically for the Deaf and hard-of-hearing community, including visual notifications, haptic feedback, and customizable alert settings.
-            </Typography>
-            <Typography variant="body1">
-              <strong>Note:</strong> EchoLens.AI aims to enhance awareness of environmental sounds and emotional context, providing greater independence and confidence in navigating daily life.
-            </Typography>
-          </Grid>
-        </Grid>
+        <Typography variant="body1" paragraph>
+          EchoLens.AI is an advanced sound and emotion translator designed to support Deaf and hard-of-hearing users. It uses state-of-the-art AI to analyze audio signals, voice patterns, and provide contextual information about the surrounding environment.
+        </Typography>
         <MotionBox 
           component={motion.div}
           sx={{ display: 'flex', alignItems: 'center', mt: 2 }}
@@ -509,7 +444,7 @@ const Dashboard = ({ emotionalState, darkMode }) => {
           }}
         >
           <AccessibilityNewIcon color="primary" sx={{ mr: 1 }} />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" fontWeight="medium">
             EchoLens.AI is designed to be fully accessible to Deaf and hard-of-hearing users.
           </Typography>
         </MotionBox>

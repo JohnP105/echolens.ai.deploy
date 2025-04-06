@@ -16,7 +16,8 @@ import {
   Divider,
   Alert,
   Snackbar,
-  useTheme
+  useTheme,
+  Button
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import SendIcon from '@mui/icons-material/Send';
@@ -24,7 +25,12 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import MoodIcon from '@mui/icons-material/Mood';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import API from '../utils/API';
+import dataStorage, { saveData, loadData, exportToJsonFile } from '../utils/dataStorage';
+
+// Use STORAGE_KEYS from the imported module
+const { STORAGE_KEYS } = dataStorage;
 
 // Motion components
 const MotionPaper = motion(Paper);
@@ -77,6 +83,26 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
   const [apiStatus, setApiStatus] = useState({ status: 'checking', gemini_api: 'checking' });
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
+  
+  // Load saved messages on component mount
+  useEffect(() => {
+    const savedMessages = loadData(STORAGE_KEYS.CHAT_HISTORY, []);
+    if (savedMessages && savedMessages.length > 0) {
+      // Convert timestamp strings back to Date objects
+      const processedMessages = savedMessages.map(msg => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+      setMessages(processedMessages);
+    }
+  }, []);
+  
+  // Save messages whenever they change
+  useEffect(() => {
+    if (messages.length > 1) {  // Don't save just the welcome message
+      saveData(STORAGE_KEYS.CHAT_HISTORY, messages);
+    }
+  }, [messages]);
   
   // Check API status on component mount
   useEffect(() => {
@@ -173,6 +199,25 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
     }
   };
   
+  const handleExportChat = () => {
+    // Create a formatted chat history with metadata
+    const chatExport = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        totalMessages: messages.length,
+        conversationStart: messages[0]?.timestamp?.toISOString(),
+        conversationEnd: messages[messages.length-1]?.timestamp?.toISOString()
+      },
+      messages: messages.map(msg => ({
+        ...msg,
+        timestamp: msg.timestamp?.toISOString()
+      }))
+    };
+    
+    // Export to JSON file
+    exportToJsonFile(chatExport, 'echolens_chat_history.json');
+  };
+  
   // Get background color for message bubble
   const getMessageBackground = (message) => {
     if (message.isError) return theme.palette.error.light;
@@ -252,29 +297,23 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
           </Box>
         </Box>
         
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {/* API Status Indicators */}
-          <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-            <Tooltip title={`API Status: ${apiStatus.status}`}>
-              <Box sx={{ 
-                width: 10, 
-                height: 10, 
-                borderRadius: '50%', 
-                bgcolor: apiStatus.status === 'online' ? 'success.main' : 
-                       apiStatus.status === 'checking' ? 'warning.main' : 'error.main',
-                mr: 1
-              }} />
-            </Tooltip>
-            <Tooltip title={`Gemini AI: ${apiStatus.gemini_api}`}>
-              <Box sx={{ 
-                width: 10, 
-                height: 10, 
-                borderRadius: '50%', 
-                bgcolor: apiStatus.gemini_api === 'connected' ? 'success.main' : 
-                       apiStatus.gemini_api === 'checking' ? 'warning.main' : 'error.main'
-              }} />
-            </Tooltip>
-          </Box>
+        <Box>
+          <Tooltip title="Export chat history to JSON">
+            <IconButton 
+              color="inherit" 
+              onClick={handleExportChat}
+              disabled={messages.length <= 1}
+            >
+              <FileDownloadIcon />
+            </IconButton>
+          </Tooltip>
+          
+          <Chip 
+            size="small"
+            label={`${apiStatus.status === 'online' ? 'Online' : 'Offline'}`}
+            color={apiStatus.status === 'online' ? 'success' : 'error'}
+            sx={{ ml: 1 }}
+          />
         </Box>
       </Paper>
 

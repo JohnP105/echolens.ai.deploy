@@ -2,12 +2,20 @@
 Flask==2.0.1
 Flask-Cors==3.0.10
 werkzeug==2.0.3
-python-dotenv==1.0.0
-google-generativeai==0.3.1
-numpy==1.24.2
-opencv-python==4.7.0.72
-deepface==0.0.79
-Pillow==9.4.0
+python-dotenv==0.21.0
+google-generativeai>=0.5.0
+numpy==1.24.3
+scipy==1.10.1
+sounddevice==0.4.6
+SpeechRecognition==3.10.0
+pyroomacoustics==0.6.0
+tensorflow==2.13.0
+tensorflow-hub==0.14.0
+
+# Optional dependencies - install manually if needed
+# opencv-python==4.7.0.72
+# deepface==0.0.79
+# Pillow==9.4.0
 
 # Optional hardware dependencies (uncomment as needed)
 # RPi.GPIO==0.7.1  # For Raspberry Pi GPIO

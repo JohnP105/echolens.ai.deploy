@@ -5,12 +5,38 @@ import json
 import time
 import logging
 import threading
+import numpy as np
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("Loaded environment variables from .env file")
+    
+    # Debug: Check if API key was found
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
+    if api_key:
+        print(f"Found API key (length: {len(api_key)}): {api_key[:4]}...")
+    else:
+        print("WARNING: No GOOGLE_API_KEY found in environment variables!")
+except ImportError:
+    print("python-dotenv not installed. Environment variables from .env file won't be loaded.")
+    print("Install with: pip install python-dotenv")
+
+# NumPy compatibility fix
+if not hasattr(np, 'float'):
+    np.float = float
+    np.float = np.float64
+
 import google.generativeai as genai
 from datetime import datetime
-import numpy as np
 import sounddevice as sd
 import queue
 import speech_recognition as sr
+from scipy import signal
+import tensorflow as tf
+import tensorflow_hub as hub
+import random  # For demo/test data generation
 
 # Configure logging
 logging.basicConfig(
@@ -25,74 +51,69 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-# More permissive CORS settings - allow everything
 CORS(app, 
      resources={r"/*": {"origins": "*"}},
      supports_credentials=True,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "Accept"])  # Super permissive CORS settings
+     allow_headers=["Content-Type", "Authorization", "Accept"])
 
 # Configure Gemini API
 try:
+    # Get API key from environment variable
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+    
     if not GOOGLE_API_KEY:
-        logger.warning("GOOGLE_API_KEY not found in environment variables. Some features may not work.")
-    
-    logger.info(f"Initializing Gemini API with key length: {len(GOOGLE_API_KEY)}")
-    genai.configure(api_key=GOOGLE_API_KEY)
-    
-    # Fetch available models to verify connection
-    try:
-        model_list = genai.list_models()
-        available_models = [m.name for m in model_list]
-        logger.info(f"Available Gemini models: {available_models}")
+        logger.warning("GOOGLE_API_KEY not found in environment variables.")
+        logger.warning("Make sure you have a .env file with GOOGLE_API_KEY=your_api_key")
+        logger.warning("Or set the environment variable manually.")
+        logger.warning("Emotion detection will use basic fallback method.")
+        model = None
+    elif GOOGLE_API_KEY == "your_api_key_here":
+        logger.warning("GOOGLE_API_KEY is set to the default placeholder value.")
+        logger.warning("Please replace 'your_api_key_here' with your actual Gemini API key.")
+        model = None
+    else:
+        logger.info(f"Initializing Gemini API with key (length: {len(GOOGLE_API_KEY)})")
+        genai.configure(api_key=GOOGLE_API_KEY)
         
-        # Use correct model from available models list
+        # Use Gemini 1.5 Pro model for better multimodal capabilities
         target_model = "models/gemini-1.5-pro"
-        if any("models/gemini-1.5-pro" in model for model in available_models):
-            target_model = "models/gemini-1.5-pro"
-        elif any("models/gemini-pro" in model for model in available_models):
-            target_model = "models/gemini-pro"
         
-        logger.info(f"Selected model: {target_model}")
-    except Exception as e:
-        logger.error(f"Error listing models: {str(e)}")
-        target_model = "models/gemini-1.5-pro"  # Default to available model
-    
-    # Set up Gemini model with updated model names
-    generation_config = {
-        "temperature": 0.7,
-        "top_p": 0.95,
-        "top_k": 30,
-        "max_output_tokens": 1024,
-    }
-    
-    safety_settings = [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-    ]
-    
-    # Use the selected model
-    model = genai.GenerativeModel(
-        model_name=target_model,
-        generation_config=generation_config,
-        safety_settings=safety_settings
-    )
-    
-    # Set up vision model for multimodal inputs (using the same model for simplicity)
-    vision_model = genai.GenerativeModel(
-        model_name=target_model,
-        generation_config=generation_config,
-        safety_settings=safety_settings
-    )
-    
-    logger.info(f"Gemini API configured successfully with model: {target_model}")
+        # Set up Gemini model
+        generation_config = {
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "top_k": 30,
+            "max_output_tokens": 1024,
+        }
+        
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+        ]
+        
+        # Initialize model
+        model = genai.GenerativeModel(
+            model_name=target_model,
+            generation_config=generation_config,
+            safety_settings=safety_settings
+        )
+        
+        logger.info(f"Gemini API configured successfully with model: {target_model}")
 except Exception as e:
     logger.error(f"Failed to configure Gemini API: {str(e)}")
     model = None
-    vision_model = None
+
+# Load YAMNet model for audio classification
+try:
+    logger.info("Loading YAMNet model for audio classification...")
+    yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
+    logger.info("YAMNet model loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load YAMNet model: {str(e)}")
+    yamnet_model = None
 
 # Default user preferences
 default_preferences = {
@@ -102,7 +123,7 @@ default_preferences = {
     "directional_audio": True,
     "notification_volume": 70,
     "distance_reporting": True,
-    "important_sounds": ["doorbell", "alarm", "phone", "name_called"]
+    "important_sounds": ["doorbell", "alarm", "phone", "name_called", "car horn", "siren", "dog", "baby crying", "knock"]
 }
 
 # In-memory database for development
@@ -112,635 +133,840 @@ mock_db = {
     "sound_alerts": []
 }
 
-# Common sound effects for classification
-common_sounds = {
-    "household": ["doorbell", "knock", "microwave beep", "oven timer", "refrigerator hum", "dishwasher"],
-    "alerts": ["alarm", "phone ringing", "notification alert", "fire alarm", "security alarm"],
-    "human": ["footsteps", "coughing", "sneezing", "laughing", "crying", "shouting", "whispering"],
-    "devices": ["keyboard typing", "phone vibration", "computer fan", "printer"],
-    "external": ["car horn", "siren", "thunder", "rain", "wind", "construction"]
-}
-
 # Emotions we can detect
 detectable_emotions = [
     "happy", "excited", "sad", "angry", "surprised", "confused", 
     "frustrated", "neutral", "concerned", "sarcastic"
 ]
 
+# Common phrases for demo/testing
+demo_phrases = [
+    "I'm really excited about this project!",
+    "I'm not sure if this is working correctly.",
+    "Could you repeat that? I didn't hear you.",
+    "That's amazing news! I'm so happy for you!",
+    "I'm sorry to hear that, that must be difficult.",
+    "Wait, what did you just say? That's surprising!",
+    "I'm a bit frustrated with this situation.",
+    "Let's meet tomorrow to discuss the project details.",
+    "That doesn't make any sense, I'm confused.",
+    "Can you speak louder? It's hard to hear you."
+]
+
+# Common sounds for demo/testing
+demo_sounds = [
+    "doorbell", "alarm", "phone ringing", "car horn", "dog", "baby crying",
+    "siren", "applause", "footsteps", "knock", "water running", "typing",
+    "bird", "music", "speech", "drum", "engine", "clock"
+]
+
 # Audio processing settings
 SAMPLE_RATE = 16000  # Hz
 CHUNK_DURATION = 3  # seconds
-CHANNELS = 1
+CHANNELS = 2  # Stereo for spatial audio
 DTYPE = 'float32'
 
 # Initialize speech recognition
 recognizer = sr.Recognizer()
-# Adjust for ambient noise - set energy threshold higher
-recognizer.energy_threshold = 4000  # default is 300
+recognizer.energy_threshold = 1000  # Reduced from 4000 to be more sensitive
 recognizer.dynamic_energy_threshold = True
-# Set the timeout for waiting for phrase
-recognizer.pause_threshold = 0.8  # default is 0.8 seconds
+recognizer.pause_threshold = 0.8
 
 # Initialize audio queue
 audio_queue = queue.Queue()
 
-# Function to process audio in real time
-def audio_callback(indata, frames, time, status):
-    """Callback function for handling incoming audio data"""
-    if status:
-        logger.warning(f"Audio status: {status}")
-    
-    # Put audio data in the queue
-    audio_queue.put(indata.copy())
+# Global audio level history
+audio_level_history = [random.random() * 0.1 for _ in range(20)]  # Start with some random data
+MAX_AUDIO_HISTORY = 20
 
-# Audio processing function
-def process_audio_chunk(audio_data=None):
+# Latest spectral analysis
+latest_spectral_analysis = None
+
+# Flag to control audio processing thread
+is_processing_audio = False
+# Flag to enable demo/test mode (generating fake data)
+demo_mode = False
+# Last time we restarted the audio processing
+last_restart_time = 0
+# Flag for demo processing
+is_demo_processing = False
+
+def detect_sound_direction(left_channel, right_channel):
     """
-    Process audio data to extract transcription, emotion, and environmental sounds.
-    """
-    import random
+    Detect the direction of a sound based on stereo channel data.
     
-    # Initialize results
-    results = {
-        "timestamp": datetime.now().isoformat(),
-        "speech_detected": False,
-        "environmental_sound_detected": False,
-        "transcription": None,
-        "emotion": None,
-        "sound_event": None
+    Args:
+        left_channel: Numpy array of left channel audio data
+        right_channel: Numpy array of right channel audio data
+        
+    Returns:
+        Direction information as a dict with angle and text description
+    """
+    try:
+        # Calculate energy in each channel
+        left_energy = np.mean(np.abs(left_channel))
+        right_energy = np.mean(np.abs(right_channel))
+        
+        # Add small epsilon to avoid division by zero
+        epsilon = 1e-10
+        
+        # Calculate ratio between channels
+        ratio = left_energy / (right_energy + epsilon)
+        
+        # Log the ratio for debugging
+        logger.debug(f"Direction detection - left energy: {left_energy}, right energy: {right_energy}, ratio: {ratio}")
+        
+        # Calculate approximate angle
+        if ratio > 1.1:  # Left is louder (reduced threshold from >1)
+            # Sound more from left side
+            angle = 270 - min(90, (ratio - 1) * 45)
+            direction = "left"
+        elif ratio < 0.9:  # Right is louder (increased threshold from <1)
+            # Sound more from right side
+            angle = 90 - min(90, (1/ratio - 1) * 45)
+            direction = "right"
+        else:
+            # Sound from center
+            angle = 0
+            direction = "center"
+            
+        result = {
+            "angle": float(angle),
+            "direction": direction,
+            "confidence": min(1.0, abs(1 - ratio) * 2)
+        }
+        
+        logger.debug(f"Direction detection result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in direction detection: {str(e)}")
+        return {"angle": 0, "direction": "unknown", "confidence": 0}
+
+def analyze_emotion_with_gemini(text):
+    """
+    Analyze the emotional content of text using Gemini API
+    
+    Args:
+        text: The text to analyze
+        
+    Returns:
+        Dict with emotion analysis
+    """
+    if not model or not text:
+        # If model is not available, provide a basic fallback emotion analysis
+        emotion_analysis = provide_fallback_emotion_analysis(text)
+        logger.info(f"Using fallback emotion analysis for: '{text[:30]}...'")
+        return emotion_analysis
+    
+    try:
+        prompt = f"""
+        Analyze the emotional tone of this text. Respond in JSON format with the following fields:
+        - emotion: The primary emotion (happy, excited, sad, angry, surprised, confused, frustrated, neutral, concerned, sarcastic)
+        - confidence: A number between 0 and 1 indicating confidence
+        - intensity: A number between 0 and 1 indicating intensity
+        - explanation: Short explanation of why you detected this emotion
+        
+        Text to analyze: "{text}"
+        
+        JSON response:
+        """
+        
+        response = model.generate_content(prompt)
+        
+        try:
+            # Parse JSON from response
+            json_str = response.text
+            # Extract JSON if it's wrapped in markdown code blocks
+            if "```json" in json_str:
+                json_str = json_str.split("```json")[1].split("```")[0].strip()
+            elif "```" in json_str:
+                json_str = json_str.split("```")[1].split("```")[0].strip()
+                
+            analysis = json.loads(json_str)
+            return analysis
+        except Exception as e:
+            logger.error(f"Error parsing emotion analysis JSON: {str(e)}")
+            # Fallback to simple extraction
+            return provide_fallback_emotion_analysis(text)
+    except Exception as e:
+        logger.error(f"Error in emotion analysis: {str(e)}")
+        return provide_fallback_emotion_analysis(text)
+
+def provide_fallback_emotion_analysis(text):
+    """
+    Provide a basic rule-based emotion analysis when Gemini API is not available
+    
+    Args:
+        text: The text to analyze
+        
+    Returns:
+        Dict with basic emotion analysis
+    """
+    # Simple keyword-based emotion detection
+    text = text.lower()
+    
+    # Define emotion keywords
+    emotion_keywords = {
+        "happy": ["happy", "joy", "glad", "excellent", "great", "wonderful", "love", "yay", "smile"],
+        "excited": ["excited", "amazing", "wow", "awesome", "incredible", "thrilled"],
+        "sad": ["sad", "sorry", "unfortunate", "miss", "regret", "disappoint", "cry"],
+        "angry": ["angry", "mad", "frustrat", "annoyed", "hate", "upset", "furious"],
+        "surprised": ["surprise", "shock", "unexpected", "woah", "whoa", "oh my"],
+        "confused": ["confused", "unclear", "don't understand", "what?", "huh?", "lost"],
+        "neutral": ["okay", "fine", "alright", "so", "and", "the", "a"]
     }
     
-    # If no audio data provided or we're in development mode, use mock data
-    if audio_data is None:
-        logger.warning("Using mock audio processing - real audio not available")
-        # Randomly decide if we detected speech or environmental sound
-        has_speech = random.random() > 0.3
-        has_sound = random.random() > 0.5
-        
-        results["speech_detected"] = has_speech
-        results["environmental_sound_detected"] = has_sound
-        
-        # Mock speech detection
-        if has_speech:
-            sample_phrases = [
-                "I'm really excited about this project!",
-                "Can you help me understand what that sound was?",
-                "I'm not sure if this is working correctly.",
-                "The weather today is beautiful.",
-                "Did you hear that noise from the kitchen?",
-                "I don't think you understood what I meant."
-            ]
-            
-            results["transcription"] = {
-                "text": random.choice(sample_phrases),
-                "confidence": random.uniform(0.7, 0.98)
-            }
-            
-            # Use Gemini for emotion or fallback to random
-            if model and results["transcription"]["text"]:
-                try:
-                    prompt = f"""
-                    Analyze the following text and determine the most likely emotion being expressed.
-                    Return only one word from this list: {', '.join(detectable_emotions)}.
-                    
-                    Text: "{results["transcription"]["text"]}"
-                    
-                    Emotion:
-                    """
-                    
-                    response = model.generate_content(prompt)
-                    emotion = response.text.strip().lower()
-                    
-                    # Validate the emotion is in our list
-                    if emotion in detectable_emotions:
-                        results["emotion"] = emotion
-                    else:
-                        results["emotion"] = "neutral"
-                except Exception as e:
-                    logger.error(f"Error detecting emotion: {str(e)}")
-                    results["emotion"] = "neutral"
-            else:
-                results["emotion"] = random.choice(detectable_emotions)
-        
-        # Mock sound detection
-        if has_sound:
-            sound_category = random.choice(list(common_sounds.keys()))
-            sound_type = random.choice(common_sounds[sound_category])
-            
-            # Generate a more specific description with direction and distance
-            directions = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
-            direction = random.choice(directions)
-            distance = f"{random.randint(2, 30)}ft"
-            
-            # Create a description
-            if sound_type == "doorbell":
-                description = f"Doorbell (front door)"
-            elif sound_type == "knock":
-                description = f"Knocking ({direction} door)"
-            elif sound_type == "footsteps":
-                description = f"Footsteps approaching ({direction})"
-            elif sound_type == "phone ringing":
-                description = f"Phone ringing ({random.choice(['bedroom', 'kitchen', 'living room'])})"
-            else:
-                description = f"{sound_type.title()} ({direction})"
-            
-            # Determine priority based on sound type
-            high_priority = ["alarm", "fire alarm", "doorbell", "phone ringing"]
-            medium_priority = ["knock", "microwave beep", "oven timer", "notification alert"]
-            
-            if sound_type in high_priority:
-                priority = "high"
-            elif sound_type in medium_priority:
-                priority = "medium"
-            else:
-                priority = "low"
-            
-            results["sound_event"] = {
-                "sound_type": sound_type,
-                "category": sound_category,
-                "description": description,
-                "direction": direction,
-                "distance": distance,
-                "priority": priority
-            }
-        
-        return results
+    # Count emotion keywords
+    emotion_scores = {}
+    for emotion, keywords in emotion_keywords.items():
+        score = 0
+        for keyword in keywords:
+            if keyword in text:
+                score += 1
+        emotion_scores[emotion] = score
     
-    # Process real audio data when available
+    # Default to neutral if no emotions detected
+    if all(score == 0 for score in emotion_scores.values()):
+        primary_emotion = "neutral"
+        confidence = 0.5
+        explanation = "No clear emotion markers detected in text"
+    else:
+        # Get primary emotion
+        primary_emotion = max(emotion_scores, key=emotion_scores.get)
+        total_score = sum(emotion_scores.values())
+        confidence = min(0.7, emotion_scores[primary_emotion] / (total_score + 1) * 0.7)
+        explanation = f"Basic keyword detection found {primary_emotion} indicators"
+    
+    return {
+        "emotion": primary_emotion,
+        "confidence": confidence,
+        "intensity": confidence * 0.8,  # Intensity usually slightly lower than confidence
+        "explanation": explanation,
+        "source": "fallback"  # Indicate this is from fallback analysis
+    }
+
+def identify_sounds_with_yamnet(audio_data):
+    """
+    Identify sounds in audio data using YAMNet model
+    
+    Args:
+        audio_data: Audio data as numpy array (mono)
+        
+    Returns:
+        List of detected sounds with confidence scores
+    """
+    if yamnet_model is None or audio_data is None:
+        return []
+    
     try:
-        # For real audio processing, convert the audio data to the format expected by SpeechRecognition
-        # This is a simplified implementation
+        # Store original stereo data for direction detection
+        stereo_data = audio_data.copy() if len(audio_data.shape) > 1 and audio_data.shape[1] > 1 else None
         
-        # 1. Convert audio data to a format SpeechRecognition can use
-        # SpeechRecognition expects audio in a different format so we need to convert
-        audio_np = audio_data.astype(np.float32)
+        # Ensure audio is mono and correct sample rate (16kHz) for YAMNet
+        if len(audio_data.shape) > 1 and audio_data.shape[1] > 1:
+            # Convert stereo to mono by averaging channels
+            audio_data = np.mean(audio_data, axis=1)
         
-        # We need to convert the numpy array to an audio source SpeechRecognition can use
-        # For simplicity, we'll save it to a temporary WAV file then read it back
-        import wave
-        import tempfile
-        import os
+        # Ensure correct dtype
+        audio_data = audio_data.astype(np.float32)
         
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-            temp_filename = temp_file.name
+        # Run inference
+        scores, embeddings, log_mel_spectrogram = yamnet_model(audio_data)
         
-        # Save as WAV file
-        with wave.open(temp_filename, 'wb') as wf:
-            wf.setnchannels(CHANNELS)
-            wf.setsampwidth(2)  # 16-bit
-            wf.setframerate(SAMPLE_RATE)
-            # Convert float32 to int16
-            audio_int16 = (audio_np * 32767).astype(np.int16)
-            wf.writeframes(audio_int16.tobytes())
-        
-        # Use SpeechRecognition to transcribe the audio
-        with sr.AudioFile(temp_filename) as source:
-            audio = recognizer.record(source)  # get all audio from the source
-            
-            try:
-                # Use Google's speech recognition API (free tier)
-                transcription_text = recognizer.recognize_google(audio)
-                confidence = 0.8  # estimate
-                
-                # If we got a transcription, update results
-                if transcription_text:
-                    results["speech_detected"] = True
-                    results["transcription"] = {
-                        "text": transcription_text,
-                        "confidence": confidence
-                    }
-                    
-                    # Use Gemini for emotion detection
-                    if model:
-                        try:
-                            prompt = f"""
-                            Analyze the following text and determine the most likely emotion being expressed.
-                            Return only one word from this list: {', '.join(detectable_emotions)}.
-                            
-                            Text: "{transcription_text}"
-                            
-                            Emotion:
-                            """
-                            
-                            response = model.generate_content(prompt)
-                            emotion = response.text.strip().lower()
-                            
-                            # Validate the emotion is in our list
-                            if emotion in detectable_emotions:
-                                results["emotion"] = emotion
-                            else:
-                                results["emotion"] = "neutral"
-                        except Exception as e:
-                            logger.error(f"Error detecting emotion: {str(e)}")
-                            results["emotion"] = "neutral"
-            except sr.UnknownValueError:
-                # Speech was unintelligible
-                logger.debug("Speech recognition could not understand audio")
-            except sr.RequestError as e:
-                # API was unreachable or unresponsive
-                logger.error(f"Could not request results from Google Speech Recognition service: {e}")
-        
-        # Clean up the temporary file
+        # Try to get the class map path 
         try:
-            os.unlink(temp_filename)
+            # Get the path to the class map CSV file
+            class_map_path = yamnet_model.class_map_path().numpy().decode('utf-8')
+            logger.info(f"Loading class names from: {class_map_path}")
+            
+            # Load class names from the CSV file
+            class_names = []
+            with open(class_map_path) as f:
+                for row in f:
+                    parts = row.strip().split(',')
+                    if len(parts) >= 1:
+                        # Format the class name to be more readable
+                        class_name = parts[0].strip().replace('_', ' ').title()
+                        class_names.append(class_name)
         except Exception as e:
-            logger.warning(f"Error removing temporary file: {e}")
+            logger.error(f"Error loading class names: {str(e)}")
+            # Fallback class names
+            class_names = [
+                "Speech", "Music", "Dog", "Cat", "Bird", "Vehicle", "Alarm", 
+                "Doorbell", "Phone", "Water", "Wind", "Footsteps", "Knock",
+                "Typing", "Applause", "Baby Crying", "Siren", "Clock", "Bell"
+            ] + [f"Sound_{i}" for i in range(512)]  # Add fallback for index overflows
         
-        # 2. Use Gemini to detect environmental sounds
-        # In a real implementation, we'd use a specialized sound classification model
-        if model and not results["speech_detected"]:
-            # Check if there's significant audio energy
-            energy = np.mean(np.abs(audio_np))
-            if energy > 0.05:  # Arbitrary threshold
-                results["environmental_sound_detected"] = True
+        # Get top 5 predictions
+        top_indices = np.argsort(scores.numpy().mean(axis=0))[-5:][::-1]
+        detected_sounds = []
+        
+        # Make sure we don't access an index that doesn't exist in class_names
+        for i in top_indices:
+            if i < len(class_names):
+                sound_name = class_names[i]
+                confidence = float(scores.numpy().mean(axis=0)[i])
                 
-                # Ask Gemini to classify the sound
-                prompt = f"""
-                I've detected an environmental sound (not speech).
-                Based on these audio characteristics:
-                - Energy level: {energy}
-                - Peak amplitude: {np.max(np.abs(audio_np))}
-                
-                Provide:
-                1. A sound type from this list: {str(list(sum(common_sounds.values(), [])))}
-                2. A likely category from these categories: household, alerts, human, devices, external
-                
-                Reply in JSON format with keys: "sound_type", "category"
-                """
-                
-                try:
-                    response = model.generate_content(prompt)
-                    response_text = response.text.strip()
-                    
-                    # Try to parse the JSON response
-                    try:
-                        import re
-                        # Find JSON-like content in the response
-                        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-                        if json_match:
-                            json_str = json_match.group(0)
-                            sound_info = json.loads(json_str)
-                            sound_type = sound_info.get("sound_type", "unknown sound")
-                            sound_category = sound_info.get("category", "household")
-                        else:
-                            # Fallback if no JSON found
-                            sound_type = "unknown sound"
-                            sound_category = "household"
-                    except Exception as e:
-                        logger.error(f"Error parsing Gemini response: {e}")
-                        sound_type = "unknown sound"
-                        sound_category = "household"
-                    
-                    # Generate a description with direction
-                    directions = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
-                    direction = random.choice(directions)
-                    distance = "nearby"  # Simplified for now
-                    
-                    if sound_type == "doorbell":
-                        description = f"Doorbell (front door)"
-                    elif sound_type == "knock":
-                        description = f"Knocking ({direction} door)"
-                    elif sound_type == "footsteps":
-                        description = f"Footsteps approaching ({direction})"
-                    elif sound_type == "phone ringing":
-                        description = f"Phone ringing (nearby)"
-                    else:
-                        description = f"{sound_type.title()} ({direction})"
-                    
-                    # Determine priority based on sound type
-                    high_priority = ["alarm", "fire alarm", "doorbell", "phone ringing"]
-                    medium_priority = ["knock", "microwave beep", "oven timer", "notification alert"]
-                    
-                    if sound_type in high_priority:
-                        priority = "high"
-                    elif sound_type in medium_priority:
-                        priority = "medium"
-                    else:
-                        priority = "low"
-                    
-                    results["sound_event"] = {
-                        "sound_type": sound_type,
-                        "category": sound_category,
-                        "description": description,
-                        "direction": direction,
-                        "distance": distance,
-                        "priority": priority
+                if confidence > 0.1:  # Only include sounds with reasonable confidence
+                    detected_sounds.append({
+                        "sound": sound_name,
+                        "confidence": confidence
+                    })
+            else:
+                logger.warning(f"Index {i} out of range for class_names (length: {len(class_names)})")
+        
+        return detected_sounds
+    except Exception as e:
+        logger.error(f"Error in sound identification: {str(e)}")
+        return []
+
+def generate_demo_transcription():
+    """Generate a fake transcription for demo/testing purposes"""
+    phrase = random.choice(demo_phrases)
+    emotion = random.choice(detectable_emotions)
+    confidence = random.random() * 0.5 + 0.5  # 0.5-1.0
+    intensity = random.random() * 0.5 + 0.5  # 0.5-1.0
+    
+    # Explanations based on emotions
+    explanations = {
+        "happy": "The text contains positive language and enthusiasm",
+        "excited": "The text shows high energy and enthusiasm",
+        "sad": "The text expresses regret or disappointment",
+        "angry": "The text contains forceful language and frustration",
+        "surprised": "The text indicates unexpected information",
+        "confused": "The text expresses uncertainty or lack of clarity",
+        "frustrated": "The text shows dissatisfaction and obstacles",
+        "neutral": "The text is factual without strong emotion",
+        "concerned": "The text shows worry about a situation",
+        "sarcastic": "The text has contradictory sentiment with implied meaning"
+    }
+    
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "text": phrase,
+        "emotion": emotion,
+        "emotion_confidence": confidence,
+        "emotion_intensity": intensity,
+        "explanation": explanations.get(emotion, "Detected through language patterns")
+    }
+
+def generate_demo_sound_alert():
+    """Generate a fake sound alert for demo/testing purposes"""
+    sound = random.choice(demo_sounds)
+    confidence = random.random() * 0.5 + 0.5  # 0.5-1.0
+    direction = random.choice(["left", "right", "center"])
+    
+    # Generate angle based on direction
+    if direction == "left":
+        angle = random.uniform(180, 270)
+    elif direction == "right":
+        angle = random.uniform(90, 0)
+    else:
+        angle = random.uniform(0, 360)
+        
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "sound": sound,
+        "confidence": confidence,
+        "direction": direction,
+        "angle": angle
+    }
+
+def audio_callback(indata, frames, time, status):
+    """Callback for audio stream to put data in queue"""
+    if status:
+        logger.warning(f"Audio callback status: {status}")
+    audio_queue.put(indata.copy())
+
+def process_audio_chunk(use_demo_mode=None):
+    """
+    Process a chunk of audio data for transcription and sound detection
+    
+    Args:
+        use_demo_mode: Override to explicitly use demo mode or not. If None, use global demo_mode.
+    """
+    global latest_spectral_analysis, audio_level_history
+    
+    # Determine whether to use demo mode
+    is_demo = demo_mode if use_demo_mode is None else use_demo_mode
+    
+    try:
+        if is_demo:
+            # Generate random audio level for visualization
+            audio_level = abs(random.normalvariate(0, 0.05))
+            audio_level_history.append(float(audio_level))
+            if len(audio_level_history) > MAX_AUDIO_HISTORY:
+                audio_level_history = audio_level_history[-MAX_AUDIO_HISTORY:]
+            
+            # Randomly generate transcription (20% chance each time)
+            if random.random() < 0.2 and mock_db["user_preferences"]["transcription_enabled"]:
+                transcription = generate_demo_transcription()
+                mock_db["transcriptions"].append(transcription)
+                logger.info(f"Demo transcription: {transcription['text']}")
+            
+            # Randomly generate sound alert (15% chance each time)
+            if random.random() < 0.15 and mock_db["user_preferences"]["sound_detection_enabled"]:
+                sound_alert = generate_demo_sound_alert()
+                mock_db["sound_alerts"].append(sound_alert)
+                logger.info(f"Demo sound detected: {sound_alert['sound']} from {sound_alert['direction']}")
+            
+            return True
+            
+        # Get audio data from queue
+        audio_data = audio_queue.get(block=False)
+        
+        # Calculate audio level
+        audio_level = np.sqrt(np.mean(audio_data**2))
+        audio_level_history.append(float(audio_level))
+        if len(audio_level_history) > MAX_AUDIO_HISTORY:
+            audio_level_history = audio_level_history[-MAX_AUDIO_HISTORY:]
+        
+        # Analyze direction
+        direction_info = {"angle": 0, "direction": "center", "confidence": 0}
+        if audio_data.shape[1] >= 2:  # Ensure we have stereo data
+            left_channel = audio_data[:, 0]
+            right_channel = audio_data[:, 1]
+            direction_info = detect_sound_direction(left_channel, right_channel)
+            logger.debug(f"Direction detected: {direction_info['direction']} at {direction_info['angle']}°")
+        
+        # Sound identification
+        if mock_db["user_preferences"]["sound_detection_enabled"]:
+            detected_sounds = identify_sounds_with_yamnet(audio_data)
+            
+            # Add any detected sounds to alerts, regardless of importance
+            # This makes spatial audio more likely to be seen for testing
+            for sound in detected_sounds:
+                if sound["confidence"] > 0.3:  # Lowered threshold from 0.5
+                    sound_alert = {
+                        "timestamp": datetime.now().isoformat(),
+                        "sound": sound["sound"],
+                        "confidence": sound["confidence"],
+                        "direction": direction_info["direction"],
+                        "angle": direction_info["angle"]
                     }
-                except Exception as e:
-                    logger.error(f"Error classifying environmental sound: {e}")
+                    mock_db["sound_alerts"].append(sound_alert)
+                    logger.info(f"Sound detected: {sound['sound']} from {direction_info['direction']}")
         
+        # Speech recognition (in a separate thread to avoid blocking)
+        if (mock_db["user_preferences"]["transcription_enabled"] and 
+            audio_level > recognizer.energy_threshold / 100000):  # Even lower threshold to capture more speech
+            threading.Thread(target=process_speech, args=(audio_data,)).start()
+        
+        return True
+    except queue.Empty:
+        return False
     except Exception as e:
         logger.error(f"Error processing audio chunk: {str(e)}")
-    
-    return results
+        return False
 
-# Continuous audio processing thread
-def audio_processing_thread():
-    """Process audio continuously in a background thread."""
-    logger.info("Starting audio processing thread")
+def process_speech(audio_data):
+    """Process audio for speech recognition and emotion analysis"""
+    try:
+        # Convert to mono audio at the correct sample rate for speech recognition
+        if audio_data.shape[1] >= 2:
+            mono_audio = np.mean(audio_data, axis=1)
+        else:
+            mono_audio = audio_data.flatten()
+        
+        # Create AudioData object
+        audio_data_obj = sr.AudioData(
+            mono_audio.tobytes(),
+            sample_rate=SAMPLE_RATE,
+            sample_width=4  # float32 is 4 bytes
+        )
+        
+        # Recognize speech
+        text = recognizer.recognize_google(audio_data_obj)
+        
+        if text and len(text.strip()) > 0:
+            # Analyze emotion
+            emotion_analysis = {"emotion": "neutral", "confidence": 0}
+            if mock_db["user_preferences"]["emotion_detection_enabled"]:
+                emotion_analysis = analyze_emotion_with_gemini(text)
+            
+            # Store transcription
+            transcription = {
+                "timestamp": datetime.now().isoformat(),
+                "text": text,
+                "emotion": emotion_analysis.get("emotion", "neutral"),
+                "emotion_confidence": emotion_analysis.get("confidence", 0),
+                "emotion_intensity": emotion_analysis.get("intensity", 0),
+                "explanation": emotion_analysis.get("explanation", "")
+            }
+            
+            mock_db["transcriptions"].append(transcription)
+            logger.info(f"Transcribed: {text}")
+            
+            return transcription
+    except sr.UnknownValueError:
+        # Speech not recognized
+        pass
+    except sr.RequestError as e:
+        logger.error(f"Speech recognition service error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error in speech processing: {str(e)}")
     
-    # Try to set up real-time audio capture
-    real_audio_enabled = False
-    audio_stream = None
+    return None
+
+def audio_processing_thread():
+    """Main audio processing thread for real microphone input"""
+    global is_processing_audio
     
     try:
-        audio_stream = sd.InputStream(
+        with sd.InputStream(
             callback=audio_callback,
             channels=CHANNELS,
             samplerate=SAMPLE_RATE,
             blocksize=int(SAMPLE_RATE * CHUNK_DURATION),
             dtype=DTYPE
-        )
-        audio_stream.start()
-        real_audio_enabled = True
-        logger.info("Real-time audio capture started successfully")
+        ):
+            logger.info("Started audio processing with REAL microphone input")
+            is_processing_audio = True
+            
+            while is_processing_audio:
+                process_audio_chunk(False)  # False = use real mic
+                time.sleep(0.1)  # Small sleep to prevent CPU hogging
     except Exception as e:
-        logger.error(f"Failed to initialize audio stream: {str(e)}")
-        logger.warning("Falling back to mock audio generation")
-    
-    # Main processing loop
-    while True:
-        try:
-            audio_data = None
-            
-            # Try to get real audio data from the queue
-            if real_audio_enabled:
-                try:
-                    audio_data = audio_queue.get(timeout=CHUNK_DURATION)
-                    logger.debug("Audio chunk received from microphone")
-                except queue.Empty:
-                    logger.debug("No audio data received, continuing...")
-            
-            # Process the audio chunk
-            results = process_audio_chunk(audio_data)
-            
-            # Store transcription if speech was detected
-            if results["speech_detected"] and results["transcription"]:
-                transcription = {
-                    "id": len(mock_db["transcriptions"]) + 1,
-                    "text": results["transcription"]["text"],
-                    "emotion": results["emotion"],
-                    "timestamp": results["timestamp"]
-                }
-                
-                # Store in mock database
-                mock_db["transcriptions"].append(transcription)
-                logger.info(f"New transcription: {transcription['text']}")
-            
-            # Store sound event if detected
-            if results["environmental_sound_detected"] and results["sound_event"]:
-                sound_alert = {
-                    "id": len(mock_db["sound_alerts"]) + 1,
-                    "soundType": results["sound_event"]["sound_type"],
-                    "description": results["sound_event"]["description"],
-                    "direction": results["sound_event"]["direction"],
-                    "distance": results["sound_event"]["distance"],
-                    "priority": results["sound_event"]["priority"],
-                    "timestamp": results["timestamp"]
-                }
-                
-                # Store in mock database
-                mock_db["sound_alerts"].append(sound_alert)
-                logger.info(f"New sound alert: {sound_alert['description']}")
-            
-            # Limit the size of our in-memory storage
-            if len(mock_db["transcriptions"]) > 100:
-                mock_db["transcriptions"] = mock_db["transcriptions"][-50:]
-            
-            if len(mock_db["sound_alerts"]) > 100:
-                mock_db["sound_alerts"] = mock_db["sound_alerts"][-50:]
-                
-            # Add a small delay to control processing rate
-            time.sleep(0.5)
-            
-        except Exception as e:
-            logger.error(f"Error in audio processing thread: {str(e)}")
-            time.sleep(5)  # Wait longer after an error
-    
-    # Clean up audio stream on exit
-    if audio_stream:
-        audio_stream.stop()
-        audio_stream.close()
+        logger.error(f"Error in audio processing thread: {str(e)}")
+    finally:
+        is_processing_audio = False
+        logger.info("Stopped microphone audio processing")
 
-# Start the audio processing thread
-audio_thread = threading.Thread(target=audio_processing_thread, daemon=True)
-audio_thread.start()
+def demo_processing_thread():
+    """Thread for demo data generation without microphone"""
+    global is_demo_processing
+    
+    try:
+        logger.info("Started audio processing in DEMO MODE (no microphone access needed)")
+        is_demo_processing = True
+        
+        while is_demo_processing and demo_mode:
+            process_audio_chunk(True)  # True = use demo data
+            time.sleep(0.5)  # Longer sleep for demo mode
+    except Exception as e:
+        logger.error(f"Error in demo processing thread: {str(e)}")
+    finally:
+        is_demo_processing = False
+        logger.info("Stopped demo audio processing")
 
 # API Routes
-@app.route('/api/status', methods=['GET'])
+@app.route('/api/status')
 def status():
-    """Check the API status and Gemini connectivity."""
-    gemini_status = "connected" if model is not None else "disconnected"
-    speech_recognition_status = "connected" if recognizer is not None else "disconnected"
+    """
+    Get the current status of the API and its services
+    """
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
+    gemini_status = "connected"
+    gemini_error = None
     
-    return jsonify({
+    # Check Gemini API key status
+    if not api_key:
+        gemini_status = "missing_key"
+        gemini_error = "No API key found"
+    elif api_key == "your_api_key_here":
+        gemini_status = "invalid_key"
+        gemini_error = "Using placeholder API key"
+    elif model is None:
+        gemini_status = "error"
+        gemini_error = "Failed to initialize Gemini model"
+    
+    status_data = {
         "status": "online",
+        "timestamp": datetime.now().isoformat(),
         "gemini_api": gemini_status,
-        "speech_recognition": speech_recognition_status,
-        "audio_processing": "active"
-    })
+        "gemini_error": gemini_error,
+        "models_loaded": {
+            "yamnet": yamnet_model is not None,
+            "gemini": model is not None
+        },
+        "audio_processing": is_processing_audio,
+        "demo_mode": demo_mode
+    }
+    
+    # Log API key status
+    logger.info(f"API Status request - Gemini API: {gemini_status}")
+    if gemini_error:
+        logger.warning(f"Gemini API issue: {gemini_error}")
+        
+    return jsonify(status_data)
+
+@app.route('/api/set-demo-mode', methods=['POST'])
+def set_demo_mode():
+    """Set demo mode on or off"""
+    global demo_mode, is_processing_audio, is_demo_processing, last_restart_time
+    
+    try:
+        data = request.json
+        new_demo_mode = data.get('demo_mode', False)
+        
+        # Prevent rapid restarts (rate limiting)
+        current_time = time.time()
+        if last_restart_time and (current_time - last_restart_time < 2):
+            return jsonify({
+                'success': False,
+                'error': 'Please wait before changing mode again',
+                'demo_mode': demo_mode
+            })
+        
+        # Only take action if the mode is actually changing
+        if new_demo_mode != demo_mode:
+            logger.info(f"Changing demo mode from {demo_mode} to {new_demo_mode}")
+            
+            # Update the demo mode flag
+            demo_mode = new_demo_mode
+            
+            # If switching to demo mode
+            if demo_mode:
+                # If real audio processing is running, stop it
+                if is_processing_audio:
+                    is_processing_audio = False
+                    time.sleep(0.5)  # Small delay to ensure clean shutdown
+                
+                # Start demo processing if not already running
+                if not is_demo_processing:
+                    threading.Thread(target=demo_processing_thread, daemon=True).start()
+            
+            # If switching to real audio mode
+            else:
+                # Stop demo processing if it's running
+                if is_demo_processing:
+                    is_demo_processing = False
+                    time.sleep(0.5)  # Small delay to ensure clean shutdown
+                
+                # Real audio processing will be started by the client if needed
+            
+            last_restart_time = current_time
+                
+        return jsonify({
+            'success': True,
+            'demo_mode': demo_mode
+        })
+    except Exception as e:
+        logger.error(f"Error setting demo mode: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'demo_mode': demo_mode
+        })
+
+@app.route('/api/clear-data', methods=['POST'])
+def clear_data():
+    """Clear all transcriptions and sound alerts"""
+    try:
+        # Clear the transcriptions and sound alerts in mock_db
+        mock_db["transcriptions"] = []
+        mock_db["sound_alerts"] = []
+        logger.info("Data cleared successfully")
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error clearing data: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/start', methods=['POST'])
+def start_processing():
+    """Start audio processing with real microphone"""
+    global is_processing_audio, last_restart_time
+    
+    # Don't start microphone processing if in demo mode
+    if demo_mode:
+        return jsonify({
+            "status": "ignored",
+            "message": "Cannot start microphone in demo mode",
+            "demo_mode": demo_mode
+        })
+    
+    if not is_processing_audio:
+        # Prevent rapid restarts
+        current_time = time.time()
+        if current_time - last_restart_time > 2:  # At least 2 seconds between restarts
+            last_restart_time = current_time
+            # Start in a new thread
+            threading.Thread(target=audio_processing_thread, daemon=True).start()
+            return jsonify({
+                "status": "started", 
+                "demo_mode": demo_mode
+            })
+        else:
+            return jsonify({
+                "status": "throttled", 
+                "message": "Please wait before restarting"
+            }), 429
+    else:
+        return jsonify({
+            "status": "already_running", 
+            "demo_mode": demo_mode
+        })
+
+@app.route('/api/stop', methods=['POST'])
+def stop_processing():
+    """Stop audio processing"""
+    global is_processing_audio
+    
+    # Only stop microphone processing, not demo processing
+    if is_processing_audio:
+        is_processing_audio = False
+        # Give time for thread to close
+        time.sleep(1)
+        return jsonify({"status": "stopped"})
+    else:
+        return jsonify({"status": "not_running"})
 
 @app.route('/api/transcriptions', methods=['GET'])
 def get_transcriptions():
-    """Get recent speech transcriptions with emotion analysis."""
-    # Get parameters for pagination/filtering
+    """Get recent transcriptions"""
+    # Get limit parameter with default
     limit = request.args.get('limit', default=10, type=int)
-    page = request.args.get('page', default=1, type=int)
-    emotion = request.args.get('emotion', default=None, type=str)
     
-    skip = (page - 1) * limit
+    # Return most recent transcriptions first
+    transcriptions = sorted(
+        mock_db["transcriptions"], 
+        key=lambda x: x["timestamp"], 
+        reverse=True
+    )[:limit]
     
-    # Use in-memory database
-    transcriptions = mock_db["transcriptions"]
-    
-    # Apply emotion filter if specified
-    if emotion:
-        transcriptions = [t for t in transcriptions if t["emotion"] == emotion]
-    
-    # Calculate total for pagination
-    total = len(transcriptions)
-    
-    # Simple pagination and sort (newest first)
-    transcriptions = sorted(transcriptions, key=lambda x: x["timestamp"], reverse=True)[skip:skip+limit]
-    
-    # Return paginated results
-    return jsonify({
-        "total": total,
-        "page": page,
-        "limit": limit,
-        "transcriptions": transcriptions
-    })
+    return jsonify(transcriptions)
 
 @app.route('/api/sounds', methods=['GET'])
 def get_sound_alerts():
-    """Get environmental sound alerts."""
-    # Get parameters for pagination/filtering
+    """Get recent sound alerts"""
+    # Get limit parameter with default
     limit = request.args.get('limit', default=10, type=int)
-    page = request.args.get('page', default=1, type=int)
-    priority = request.args.get('priority', default=None, type=str)
     
-    skip = (page - 1) * limit
+    # Return most recent sound alerts first
+    alerts = sorted(
+        mock_db["sound_alerts"], 
+        key=lambda x: x["timestamp"], 
+        reverse=True
+    )[:limit]
     
-    # Use in-memory database
-    sound_alerts = mock_db["sound_alerts"]
-    
-    # Apply priority filter if specified
-    if priority:
-        sound_alerts = [s for s in sound_alerts if s["priority"] == priority]
-    
-    # Calculate total for pagination
-    total = len(sound_alerts)
-    
-    # Simple pagination and sort (newest first)
-    sound_alerts = sorted(sound_alerts, key=lambda x: x["timestamp"], reverse=True)[skip:skip+limit]
-    
-    # Return paginated results
-    return jsonify({
-        "total": total,
-        "page": page,
-        "limit": limit,
-        "soundAlerts": sound_alerts
-    })
+    return jsonify(alerts)
 
 @app.route('/api/preferences', methods=['GET', 'PUT'])
 def manage_preferences():
-    """Get or update user preferences."""
-    user_id = request.args.get('user_id', default="default", type=str)
-    
+    """Get or update user preferences"""
     if request.method == 'GET':
-        # Return from in-memory mock database
         return jsonify(mock_db["user_preferences"])
-    
     elif request.method == 'PUT':
-        data = request.json
-        
-        # Update in-memory mock database
-        for key, value in data.items():
-            if key in mock_db["user_preferences"]:
-                mock_db["user_preferences"][key] = value
-        
-        return jsonify({
-            "success": True,
-            "preferences": mock_db["user_preferences"]
-        })
-
-@app.route('/api/analyze/audio', methods=['POST'])
-def analyze_audio_sample():
-    """
-    Analyze an audio sample with Gemini.
-    In a real app, this would accept audio files.
-    """
-    # This is a mock endpoint for now
-    # In a real implementation, we would:
-    # 1. Accept audio file upload
-    # 2. Process it for speech and environmental sounds
-    # 3. Use Gemini to enhance the analysis
-    
-    return jsonify({
-        "success": True,
-        "results": process_audio_chunk()
-    })
+        try:
+            new_preferences = request.json
+            # Update only provided fields
+            for key, value in new_preferences.items():
+                if key in mock_db["user_preferences"]:
+                    mock_db["user_preferences"][key] = value
+            return jsonify(mock_db["user_preferences"])
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
 
 @app.route('/api/analyze/text', methods=['POST'])
 def analyze_text():
-    """Analyze text for emotion using Gemini."""
+    """Analyze text for emotion"""
     try:
-        data = request.json
-        text = data.get('text', '')
-        
+        text = request.json.get('text', '')
         if not text:
             return jsonify({"error": "No text provided"}), 400
-        
-        if not model:
-            return jsonify({"error": "Gemini API not configured"}), 503
-        
-        # Use Gemini to analyze emotion
-        prompt = f"""
-        Analyze the following text and determine the most likely emotion being expressed.
-        Return only one word from this list: {', '.join(detectable_emotions)}.
-        
-        Text: "{text}"
-        
-        Emotion:
-        """
-        
-        response = model.generate_content(prompt)
-        emotion = response.text.strip().lower()
-        
-        # Validate the emotion is in our list
-        if emotion not in detectable_emotions:
-            emotion = "neutral"
-        
-        # Store this transcription
-        transcription = {
-            "text": text,
-            "emotion": emotion,
-            "timestamp": datetime.now().isoformat(),
-            "source": "manual_input",
-            "id": len(mock_db["transcriptions"]) + 1
-        }
-        
-        # Store in mock database
-        mock_db["transcriptions"].append(transcription)
-        
-        return jsonify({
-            "success": True,
-            "text": text,
-            "emotion": emotion
-        })
-        
+            
+        analysis = analyze_emotion_with_gemini(text)
+        return jsonify(analysis)
     except Exception as e:
-        logger.error(f"Error analyzing text: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/audio-levels', methods=['GET'])
+def get_audio_levels():
+    """Get current audio levels for visualization"""
+    return jsonify({
+        "levels": audio_level_history,
+        "is_processing": is_processing_audio
+    })
+
+# ========== CHAT FUNCTIONALITY ==========
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    """Chat endpoint that uses Gemini to generate responses."""
+    """
+    Process chat messages using Gemini API
+    """
+    # Check if Gemini model is available
+    if model is None:
+        return jsonify({
+            "error": "Gemini API is not available. Please configure a valid API key.",
+            "response": "I'm sorry, I can't process your message right now because the Gemini API is not configured. Please add a GOOGLE_API_KEY to the environment variables.",
+            "timestamp": datetime.now().isoformat()
+        }), 503
+    
     try:
-        data = request.json
-        user_message = data.get('message', '')
+        # Get request data
+        data = request.get_json()
+        message = data.get('message', '')
         context = data.get('context', {})
         
-        if not user_message:
-            return jsonify({"error": "No message provided"}), 400
+        # Log request
+        logger.info(f"Chat request received: {message[:30]}... with context: {context}")
         
-        if not model:
-            return jsonify({"error": "Gemini API not configured"}), 503
+        # Create prompt with user's message and emotional context
+        prompt = f"""You are EchoLens.AI, an AI assistant specialized in helping deaf and hard-of-hearing users understand their audio environment.
         
-        # Prepare prompt with emotional context if available
-        emotion_context = ""
-        if context and 'emotion' in context:
-            emotion = context.get('emotion', 'neutral')
-            intensity = context.get('intensity', 'medium')
-            emotion_context = f"\nThe user's current emotional state appears to be {emotion} with {intensity} intensity."
+User Message: "{message}"
+Emotional Context: {context.get('emotion', 'neutral')} (Intensity: {context.get('intensity', 'medium')})
+
+Respond to the user in a way that acknowledges their emotional state and provides helpful information.
+If the user seems confused or frustrated, be extra clear and supportive in your response.
+If the user is asking about sounds or audio features, explain how EchoLens can help detect and classify important sounds.
+If the user mentions emotions or speech detection, explain how EchoLens can analyze speech for emotional content.
+
+Keep your response concise (2-4 sentences) and friendly.
+"""
         
-        # Use Gemini to generate a response
-        prompt = f"""
-        You are EchoLens.AI, a sound and emotion translator designed to help Deaf and hard-of-hearing users.
-        You can detect environmental sounds and emotional tones in speech.
-        
-        Please respond to the following message from the user in a helpful, conversational way.{emotion_context}
-        
-        User: {user_message}
-        
-        EchoLens.AI:
-        """
-        
+        # Generate response with Gemini
         response = model.generate_content(prompt)
-        bot_response = response.text.strip()
+        response_text = response.text
         
+        # Log response
+        logger.info(f"Chat response generated: {response_text[:50]}...")
+        
+        # Return response
         return jsonify({
-            "success": True,
-            "response": bot_response
+            "response": response_text,
+            "timestamp": datetime.now().isoformat()
         })
         
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e),
+            "response": "I'm sorry, I encountered an error processing your message.",
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
-# For testing and development
+# ========== APP INITIALIZATION ==========
+
+@app.before_first_request
+def on_first_request():
+    """Auto-start processing on first request based on mode"""
+    global is_processing_audio, is_demo_processing, last_restart_time
+    
+    last_restart_time = time.time()
+    
+    if demo_mode and not is_demo_processing:
+        # Start demo processing
+        threading.Thread(target=demo_processing_thread, daemon=True).start()
+        logger.info("Auto-started demo processing")
+    elif not demo_mode and not is_processing_audio:
+        # Start real audio processing
+        threading.Thread(target=audio_processing_thread, daemon=True).start()
+        logger.info("Auto-started microphone processing")
+
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    logger.info(f"Starting backend server on port {port}, debug mode: {debug}")
-    app.run(debug=debug, host='0.0.0.0', port=port) 
+    # Auto-start appropriate processing mode
+    last_restart_time = time.time()
+    
+    if demo_mode:
+        # Start demo processing
+        threading.Thread(target=demo_processing_thread, daemon=True).start()
+        logger.info("Auto-started demo processing")
+    else:
+        # Start real audio processing
+        threading.Thread(target=audio_processing_thread, daemon=True).start()
+        logger.info("Auto-started microphone processing")
+    
+    # Run the Flask app
+    app.run(debug=True, host='0.0.0.0', port=5000) 

@@ -1,7 +1,86 @@
 /**
  * API Client for EchoLens.AI
  */
-const API_BASE_URL = 'http://localhost:5000/api';
+import { API_BASE_URL, PREFERENCES_API_URL } from '../config';
+
+// Disable mock data - always use real API
+const USE_MOCK_DATA = false;
+
+// Remove or comment out mock data generator
+/*
+const generateMockData = {
+  status() {
+    return {
+      status: 'online',
+      gemini_api: 'connected',
+      models_loaded: {
+        yamnet: true,
+        gemini: true
+      },
+      audio_processing: true,
+      demo_mode: true
+    };
+  },
+  
+  analyzeText(text) {
+    // Simple sentiment analysis based on keywords
+    const emotions = ['happy', 'sad', 'angry', 'neutral', 'excited', 'confused', 'frustrated', 'surprised'];
+    
+    // Default to neutral
+    let emotion = 'neutral';
+    
+    // Check for emotion keywords
+    if (text.match(/happy|joy|great|excellent|awesome|love|like/i)) emotion = 'happy';
+    else if (text.match(/sad|unhappy|disappointed|miss|lost/i)) emotion = 'sad';
+    else if (text.match(/angry|mad|furious|upset|hate/i)) emotion = 'angry';
+    else if (text.match(/excited|thrilled|can't wait|looking forward/i)) emotion = 'excited';
+    else if (text.match(/confused|don't understand|what\?|how\?|why\?/i)) emotion = 'confused';
+    else if (text.match(/frustrated|annoyed|irritated|not working/i)) emotion = 'frustrated';
+    else if (text.match(/wow|whoa|oh my|really\?|surprising/i)) emotion = 'surprised';
+    
+    return {
+      emotion,
+      emotion_confidence: 0.85,
+      emotion_intensity: 'medium'
+    };
+  },
+  
+  chat(message, context) {
+    // Simple mock responses based on message content
+    const responses = [
+      "I understand how you feel. How can I help you today?",
+      "That's interesting! Tell me more about it.",
+      "I'm analyzing the audio environment around you and can help interpret sounds.",
+      "EchoLens is designed to help with audio accessibility. Is there something specific you need help with?",
+      "I noticed a pattern in the environmental sounds. Would you like me to explain what I'm detecting?",
+      "The emotional context of your message helps me provide better responses."
+    ];
+    
+    let response = responses[Math.floor(Math.random() * responses.length)];
+    
+    // Add some context-specific responses
+    if (context?.emotion === 'happy') {
+      response = "I'm glad you're feeling positive! " + response;
+    } else if (context?.emotion === 'sad' || context?.emotion === 'frustrated') {
+      response = "I'm sorry you're feeling that way. " + response;
+    }
+    
+    // Add some keyword-specific responses
+    if (message.match(/help|how do I|how to/i)) {
+      response = "To use EchoLens, simply allow microphone access and I'll help interpret the sounds around you. You can switch between different modes using the tabs.";
+    } else if (message.match(/sound|hear|audio|noise/i)) {
+      response = "I'm designed to detect and classify different sounds in your environment, from critical alerts like alarms to everyday sounds like appliances or vehicles.";
+    } else if (message.match(/emotion|feeling|sentiment/i)) {
+      response = "I can analyze speech for emotional content, helping you understand not just what people are saying, but how they're saying it.";
+    }
+    
+    return {
+      response,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+*/
 
 class API {
   /**
@@ -10,6 +89,7 @@ class API {
    */
   static async getStatus() {
     try {
+      // Connect to the real API
       console.log('Calling API status endpoint:', `${API_BASE_URL}/status`);
       const response = await fetch(`${API_BASE_URL}/status`, {
         mode: 'cors', // Explicitly request CORS
@@ -27,6 +107,8 @@ class API {
       return data;
     } catch (error) {
       console.error('Error checking API status:', error);
+      
+      // No mock data, return offline status
       return { 
         status: 'offline',
         error: error.message
@@ -85,7 +167,10 @@ class API {
    */
   static async getPreferences(userId = 'default') {
     try {
-      const response = await fetch(`${API_BASE_URL}/preferences?user_id=${userId}`);
+      const response = await fetch(PREFERENCES_API_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
       return await response.json();
     } catch (error) {
       console.error('Error fetching preferences:', error);
@@ -99,15 +184,20 @@ class API {
    * @param {string} userId - User ID (default: "default")
    * @returns {Promise<Object>} Updated user preferences
    */
-  static async updatePreferences(preferences, userId = 'default') {
+  static async updatePreferences(preferences) {
     try {
-      const response = await fetch(`${API_BASE_URL}/preferences?user_id=${userId}`, {
-        method: 'PUT',
+      const response = await fetch(PREFERENCES_API_URL, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(preferences),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      
       return await response.json();
     } catch (error) {
       console.error('Error updating preferences:', error);
@@ -173,6 +263,49 @@ class API {
       return await response.json();
     } catch (error) {
       console.error('Error sending chat message:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get real-time audio level data
+   * @returns {Promise<Object>} Audio level data
+   */
+  static async getAudioLevels() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/audio-levels`);
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching audio levels:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update calibration settings
+   * @param {Object} settings - Calibration settings to update
+   * @returns {Promise<Object>} Updated calibration settings
+   */
+  static async updateCalibrationSettings(settings) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/calibration`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating calibration settings:', error);
       throw error;
     }
   }
