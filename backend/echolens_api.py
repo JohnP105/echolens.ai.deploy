@@ -42,6 +42,10 @@ from scipy import signal
 import tensorflow as tf
 import tensorflow_hub as hub
 
+# Import database functions
+from database.dbclient import get_db, get_collection
+from database.documents import save_chat_message, get_chat_history, clear_chat_history
+
 # Define log file path
 log_file_path = os.path.join(os.path.dirname(__file__), 'echolens.log')
 
@@ -898,6 +902,38 @@ def demo_processing_thread():
         is_demo_processing = False
         logger.info("Stopped demo audio processing")
 
+# Initialize database connection
+def init_database():
+    """Initialize database connection and ensure collections exist."""
+    try:
+        logger.info("========== Database Initialization Started ==========")
+        
+        # Check if MongoDB URI is configured
+        mongodb_uri = os.environ.get('MONGODB_URI', '')
+        if not mongodb_uri:
+            logger.warning("MongoDB URI not found. Database functions will not work.")
+            return False
+        
+        logger.debug("Attempting to connect to MongoDB...")
+        # Get database connection
+        db = get_db()
+        logger.debug(f"MongoDB connection established, using database: {db.name}")
+        
+        # Create indexes for chat messages
+        chat_collection = get_collection("chat_messages")
+        chat_collection.create_index([("timestamp", -1)])
+        chat_collection.create_index([("user_id", 1)])
+        
+        logger.info("========== Database Initialization Successful ==========")
+        return True
+    except Exception as e:
+        logger.error(f"Database initialization failed: {str(e)}")
+        logger.warning("Continuing with in-memory storage only")
+        return False
+
+# Initialize database
+db_initialized = init_database()
+
 # API Routes
 @app.route('/api/status')
 def status():
@@ -1147,6 +1183,7 @@ def chat():
         data = request.get_json()
         message = data.get('message', '')
         context = data.get('context', {})
+        user_id = data.get('user_id', 'default')
         
         # Log request
         logger.info(f"Chat request received: {message[:30]}... with context: {context}")
@@ -1169,6 +1206,14 @@ Keep your response concise (2-4 sentences) and friendly.
         response = model.generate_content(prompt)
         response_text = response.text
         
+        # Save chat message to database
+        if db_initialized:
+            try:
+                save_chat_message(message, response_text, context, user_id)
+                logger.info(f"Chat message saved to database for user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to save chat message to database: {str(e)}")
+        
         # Log response
         logger.info(f"Chat response generated: {response_text[:50]}...")
         
@@ -1184,6 +1229,149 @@ Keep your response concise (2-4 sentences) and friendly.
             "error": str(e),
             "response": "I'm sorry, I encountered an error processing your message.",
             "timestamp": datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/chat_with_context', methods=['POST'])
+def chat_with_context():
+    """
+    Enhanced chat with environmental context and conversation history
+    """
+    # Check if Gemini model is available
+    if model is None or chat is None:
+        return jsonify({
+            "error": "Gemini API is not available. Please configure a valid API key.",
+            "response": "I'm sorry, I can't process your message right now because the Gemini API is not configured.",
+            "timestamp": datetime.now().isoformat()
+        }), 503
+    
+    try:
+        # Get request data
+        data = request.get_json()
+        message = data.get('message', '')
+        context = data.get('context', {})
+        user_id = data.get('user_id', 'default')
+        
+        # Get environmental context if available
+        sounds = context.get('sounds', [])
+        sound_text = "No sounds detected"
+        if sounds and len(sounds) > 0:
+            sound_text = "Detected sounds: " + ", ".join([s.get('label', 'unknown') for s in sounds[:3]])
+        
+        # Get emotional context if available
+        emotion = context.get('emotion', {})
+        emotion_text = f"Your emotional state: {emotion.get('emotion', 'neutral')} (intensity: {emotion.get('intensity', 'medium')})"
+        
+        # Get visual context if available
+        image_base64 = get_latest_frame_base64()
+        
+        # Create the prompt with all context information
+        prompt = f"""User message: {message}
+        
+Environmental context:
+- {sound_text}
+- {emotion_text}
+- Sound direction: {context.get('direction', {}).get('direction', 'unknown')}
+        
+Respond in a helpful, concise way while considering all this context information.
+"""
+        
+        # Send to the chat API with all context
+        if image_base64:
+            # Multimodal input with image
+            response = chat.send_message(
+                [
+                    prompt,
+                    {
+                        "mime_type": "image/jpeg",
+                        "data": base64.b64decode(image_base64)
+                    }
+                ]
+            )
+        else:
+            # Text-only input
+            response = chat.send_message(prompt)
+        
+        # Save chat message to database
+        if db_initialized:
+            try:
+                save_chat_message(message, response.text, context, user_id)
+                logger.info(f"Contextual chat message saved to database for user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to save contextual chat message to database: {str(e)}")
+        
+        # Return the response
+        return jsonify({
+            "response": response.text,
+            "has_visual_context": image_base64 is not None,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error in contextual chat: {str(e)}")
+        return jsonify({
+            "error": str(e),
+            "response": "I'm sorry, I encountered an error while processing your message.",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+# Add a new endpoint to retrieve chat history
+@app.route('/api/chat/history', methods=['GET'])
+def get_chat_message_history():
+    """
+    Get chat message history for a user
+    """
+    try:
+        user_id = request.args.get('user_id', 'default')
+        limit = request.args.get('limit', 20, type=int)
+        
+        if not db_initialized:
+            return jsonify({
+                "error": "Database not initialized",
+                "messages": []
+            }), 503
+        
+        messages = get_chat_history(limit, user_id)
+        
+        return jsonify({
+            "user_id": user_id,
+            "count": len(messages),
+            "messages": messages
+        })
+    except Exception as e:
+        logger.error(f"Error getting chat history: {str(e)}")
+        return jsonify({
+            "error": str(e),
+            "messages": []
+        }), 500
+
+# Add a new endpoint to clear chat history
+@app.route('/api/chat/clear', methods=['POST'])
+def clear_chat_message_history():
+    """
+    Clear chat message history for a user
+    """
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id', 'default')
+        
+        if not db_initialized:
+            return jsonify({
+                "error": "Database not initialized",
+                "deleted": 0
+            }), 503
+        
+        deleted = clear_chat_history(user_id)
+        
+        return jsonify({
+            "user_id": user_id,
+            "deleted": deleted,
+            "success": True
+        })
+    except Exception as e:
+        logger.error(f"Error clearing chat history: {str(e)}")
+        return jsonify({
+            "error": str(e),
+            "deleted": 0,
+            "success": False
         }), 500
 
 # ========== APP INITIALIZATION ==========
@@ -1290,79 +1478,6 @@ def get_camera_snapshot():
             "message": "No camera image available"
         }), 404
 
-@app.route('/api/chat_with_context', methods=['POST'])
-def chat_with_context():
-    """
-    Enhanced chat with environmental context and conversation history
-    """
-    # Check if Gemini model is available
-    if model is None or chat is None:
-        return jsonify({
-            "error": "Gemini API is not available. Please configure a valid API key.",
-            "response": "I'm sorry, I can't process your message right now because the Gemini API is not configured.",
-            "timestamp": datetime.now().isoformat()
-        }), 503
-    
-    try:
-        # Get request data
-        data = request.get_json()
-        message = data.get('message', '')
-        context = data.get('context', {})
-        
-        # Get environmental context if available
-        sounds = context.get('sounds', [])
-        sound_text = "No sounds detected"
-        if sounds and len(sounds) > 0:
-            sound_text = "Detected sounds: " + ", ".join([s.get('label', 'unknown') for s in sounds[:3]])
-        
-        # Get emotional context if available
-        emotion = context.get('emotion', {})
-        emotion_text = f"Your emotional state: {emotion.get('emotion', 'neutral')} (intensity: {emotion.get('intensity', 'medium')})"
-        
-        # Get visual context if available
-        image_base64 = get_latest_frame_base64()
-        
-        # Create the prompt with all context information
-        prompt = f"""User message: {message}
-        
-Environmental context:
-- {sound_text}
-- {emotion_text}
-- Sound direction: {context.get('direction', {}).get('direction', 'unknown')}
-        
-Respond in a helpful, concise way while considering all this context information.
-"""
-        
-        # Send to the chat API with all context
-        if image_base64:
-            # Multimodal input with image
-            response = chat.send_message(
-                [
-                    prompt,
-                    {
-                        "mime_type": "image/jpeg",
-                        "data": base64.b64decode(image_base64)
-                    }
-                ]
-            )
-        else:
-            # Text-only input
-            response = chat.send_message(prompt)
-        
-        # Return the response
-        return jsonify({
-            "response": response.text,
-            "has_visual_context": image_base64 is not None,
-            "timestamp": datetime.now().isoformat()
-        })
-    except Exception as e:
-        logger.error(f"Error in contextual chat: {str(e)}")
-        return jsonify({
-            "error": str(e),
-            "response": "I'm sorry, I encountered an error while processing your message.",
-            "timestamp": datetime.now().isoformat()
-        }), 500
-
 # New route for video stream using multipart response (MJPEG)
 @app.route('/api/camera/stream')
 def video_stream():
@@ -1390,6 +1505,10 @@ def video_stream():
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
+    # Initialize database
+    db_status = init_database()
+    logger.info(f"Database initialization status: {'Success' if db_status else 'Failed'}")
+    
     # Auto-start appropriate processing mode
     last_restart_time = time.time()
     
