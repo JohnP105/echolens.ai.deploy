@@ -38,6 +38,9 @@ import tensorflow as tf
 import tensorflow_hub as hub
 import random  # For demo/test data generation
 
+# Define log file path
+log_file_path = os.path.join(os.path.dirname(__file__), 'echolens.log')
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,  # Set to DEBUG to capture all database operations
