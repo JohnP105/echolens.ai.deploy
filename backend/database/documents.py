@@ -9,23 +9,11 @@ from bson import ObjectId
 from .dbclient import (
     get_transcriptions_collection,
     get_sound_alerts_collection,
-    get_user_preferences_collection,
     get_collection
 )
 
 # Set up logging
 logger = logging.getLogger(__name__)
-
-# Default user preferences (matches the one in echolens_api.py)
-DEFAULT_USER_PREFERENCES = {
-    "transcription_enabled": True,
-    "sound_detection_enabled": True,
-    "emotion_detection_enabled": True,
-    "directional_audio": True, 
-    "notification_volume": 70,
-    "distance_reporting": True,
-    "important_sounds": ["doorbell", "alarm", "phone", "name_called"]
-}
 
 # Define chat messages collection name
 CHAT_MESSAGES_COLLECTION = "chat_messages"
@@ -257,84 +245,6 @@ def save_detected_sound(sound, confidence, direction, angle, user_id=None):
         return result.inserted_id
     except Exception as e:
         logger.error(f"Error saving detected sound: {str(e)}")
-        raise
-
-# Functions for User Preferences
-def get_user_preferences(user_id="default"):
-    """
-    Get user preferences or create with defaults if not exist.
-    
-    Args:
-        user_id (str): User identifier
-    
-    Returns:
-        dict: User preferences
-    """
-    try:
-        collection = get_user_preferences_collection()
-        
-        # Try to find existing preferences
-        preferences = collection.find_one({"user_id": user_id})
-        
-        # If no preferences exist, create with defaults
-        if not preferences:
-            logger.info(f"No preferences found for user {user_id}, creating defaults")
-            preferences = DEFAULT_USER_PREFERENCES.copy()
-            preferences["user_id"] = user_id
-            preferences["created_at"] = datetime.now().isoformat()
-            preferences["updated_at"] = datetime.now().isoformat()
-            
-            collection.insert_one(preferences)
-            logger.info(f"Created default preferences for user {user_id}")
-        else:
-            # Convert ObjectId to string for JSON serialization
-            if "_id" in preferences:
-                preferences["_id"] = str(preferences["_id"])
-                
-        return preferences
-    except Exception as e:
-        logger.error(f"Error getting user preferences: {str(e)}")
-        raise
-
-def update_user_preferences(preferences, user_id="default"):
-    """
-    Update user preferences.
-    
-    Args:
-        preferences (dict): New preferences to apply
-        user_id (str): User identifier
-    
-    Returns:
-        dict: Updated preferences
-    """
-    try:
-        collection = get_user_preferences_collection()
-        
-        # Set update timestamp
-        preferences["updated_at"] = datetime.now().isoformat()
-        
-        # Update existing preferences
-        result = collection.update_one(
-            {"user_id": user_id},
-            {"$set": preferences},
-            upsert=True
-        )
-        
-        if result.matched_count > 0:
-            logger.info(f"Updated preferences for user {user_id}")
-        else:
-            logger.info(f"Created preferences for new user {user_id}")
-            
-        # Get the updated document
-        updated = collection.find_one({"user_id": user_id})
-        
-        # Convert ObjectId to string for JSON serialization
-        if "_id" in updated:
-            updated["_id"] = str(updated["_id"])
-            
-        return updated
-    except Exception as e:
-        logger.error(f"Error updating user preferences: {str(e)}")
         raise
 
 # Functions for Chat Messages

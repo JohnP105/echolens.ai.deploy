@@ -1266,7 +1266,7 @@ def get_sound_alerts():
 
 @app.route('/api/preferences', methods=['GET', 'PUT'])
 def manage_preferences():
-    """Get or update user preferences"""
+    """Get or update user preferences (in-memory only)"""
     if request.method == 'GET':
         return jsonify(mock_db["user_preferences"])
     elif request.method == 'PUT':

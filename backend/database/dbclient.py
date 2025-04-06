@@ -42,7 +42,6 @@ ECHOLENS_DB_NAME = "echolens" # Database name for the EchoLens application
 # Define collection names
 TRANSCRIPTIONS_COLLECTION = "transcriptions"
 SOUND_ALERTS_COLLECTION = "sound_alerts"
-USER_PREFERENCES_COLLECTION = "user_preferences"
 CHAT_MESSAGES_COLLECTION = "chat_messages"
 
 # Global variables for client and db (consider alternatives for larger apps)
@@ -167,10 +166,6 @@ def get_transcriptions_collection():
 def get_sound_alerts_collection():
     """Get the sound alerts collection."""
     return get_collection(SOUND_ALERTS_COLLECTION)
-
-def get_user_preferences_collection():
-    """Get the user preferences collection."""
-    return get_collection(USER_PREFERENCES_COLLECTION)
 
 def get_chat_messages_collection():
     """Get the chat messages collection."""
