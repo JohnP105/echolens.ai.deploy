@@ -35,6 +35,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import HomeIcon from '@mui/icons-material/Home';
 import ChatIcon from '@mui/icons-material/Chat';
 import MicIcon from '@mui/icons-material/Mic';
+import MapIcon from '@mui/icons-material/Map';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
@@ -46,6 +47,7 @@ import AudioVisualization from './AudioVisualization';
 import ChatInterface from './ChatInterface';
 import Dashboard from './Dashboard';
 import MultimodalAnalysis from './MultimodalAnalysis';
+import SoundMap from './SoundMap';
 import Header, { PageTitle } from './Header';
 
 // Animated MUI components
@@ -195,6 +197,12 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
             </ListItemIcon>
             <ListItemText primary="Multimodal Analysis" />
           </ListItem>
+          <ListItem button onClick={() => setActiveTab(5)}>
+            <ListItemIcon>
+              <MapIcon />
+            </ListItemIcon>
+            <ListItemText primary="Sound Map" />
+          </ListItem>
         </List>
         <Divider />
         <List>
@@ -321,6 +329,18 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                   textTransform: 'none', 
                   fontWeight: activeTab === 4 ? 'bold' : 'normal',
                   opacity: activeTab === 4 ? 1 : 0.7,
+                  transition: 'all 0.2s ease',
+                }} 
+              />
+              <Tab 
+                label="Sound Map" 
+                icon={<MapIcon />} 
+                iconPosition="start"
+                sx={{ 
+                  fontSize: '0.9rem', 
+                  textTransform: 'none', 
+                  fontWeight: activeTab === 5 ? 'bold' : 'normal',
+                  opacity: activeTab === 5 ? 1 : 0.7,
                   transition: 'all 0.2s ease',
                 }} 
               />
@@ -1040,6 +1060,11 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                 darkMode={darkMode}
               />
             </MotionBox>
+          )}
+          
+          {/* Sound Map Tab */}
+          {activeTab === 5 && (
+            <SoundMap darkMode={darkMode} />
           )}
         </MainContainer>
       </Box>
