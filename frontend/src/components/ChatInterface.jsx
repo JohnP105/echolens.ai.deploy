@@ -248,13 +248,13 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
   
   // Get text color for message
   const getMessageColor = (message) => {
-    if (message.isError) return 'white';
-    if (message.sender === 'bot') return 'white';
+    if (message.isError) return '#FFFFFF';
+    if (message.sender === 'bot') return '#FFFFFF';
     
     // For user messages with strong emotions, use white text
     const strongEmotions = ['angry', 'excited', 'happy'];
     if (message.emotion && strongEmotions.includes(message.emotion)) {
-      return 'white';
+      return '#FFFFFF';
     }
     
     return theme.palette.text.primary;
@@ -296,14 +296,14 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Avatar 
             sx={{ 
-              bgcolor: 'white',
+              bgcolor: '#FFFFFF',
               mr: 2
             }}
           >
             <SmartToyIcon color="primary" />
           </Avatar>
           <Box>
-            <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
+            <Typography variant="h6" sx={{ color: '#FFFFFF', fontWeight: 'bold' }}>
               EchoLens Chat
             </Typography>
             <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
@@ -429,7 +429,7 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
                             top: -12,
                             right: 12,
                             background: emotionColors[message.emotion],
-                            color: 'white',
+                            color: '#FFFFFF',
                             fontWeight: 'bold',
                             fontSize: '0.7rem'
                           }}
@@ -486,17 +486,17 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
                     <MotionBox
                       animate={{ y: [0, -5, 0] }}
                       transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 0.1 }}
-                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'white' }}
+                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#FFFFFF' }}
                     />
                     <MotionBox
                       animate={{ y: [0, -5, 0] }}
                       transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 0.2, delay: 0.1 }}
-                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'white' }}
+                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#FFFFFF' }}
                     />
                     <MotionBox
                       animate={{ y: [0, -5, 0] }}
                       transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 0.3, delay: 0.2 }}
-                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'white' }}
+                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#FFFFFF' }}
                     />
                   </Box>
                 </Paper>
@@ -552,7 +552,7 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
           sx={{ 
             p: 2,
             bgcolor: theme.palette.primary.main,
-            color: 'white',
+            color: '#FFFFFF',
             '&:hover': {
               bgcolor: theme.palette.primary.dark
             },

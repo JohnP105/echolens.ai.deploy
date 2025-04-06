@@ -174,7 +174,7 @@ const PageTitle = ({ title, subtitle }) => {
               <Typography 
                 variant="h6"
                 sx={{ 
-                  color: 'white',
+                  color: '#FFFFFF',
                   fontWeight: 400,
                   textShadow: '0 2px 5px rgba(0,0,0,0.3)',
                   opacity: 0.9,

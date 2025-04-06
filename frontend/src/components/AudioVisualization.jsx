@@ -1837,7 +1837,7 @@ const AudioVisualization = ({ mode = 'general', onEmotionDetected, visualStyle =
                       alignItems: 'center',
                       gap: 0.5
                     }}>
-                      <Box sx={{ color: 'white' }}>
+                      <Box sx={{ color: '#FFFFFF' }}>
                         {getSoundTypeIcon(soundAlerts[0].sound_type || soundAlerts[0].sound)}
             </Box>
                       <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
@@ -1946,7 +1946,7 @@ const AudioVisualization = ({ mode = 'general', onEmotionDetected, visualStyle =
                               {/* Sound type and priority */}
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <Typography variant="body2" fontWeight="bold" sx={{ 
-                                  color: index === 0 ? alertColor : 'white',
+                                  color: index === 0 ? alertColor : '#FFFFFF',
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: 0.5
@@ -2247,7 +2247,7 @@ const AudioVisualization = ({ mode = 'general', onEmotionDetected, visualStyle =
                               variant="body1" 
                               sx={{ 
                                 fontWeight: isLastItem ? 'bold' : 'normal',
-                                color: isLastItem ? 'white' : 'rgba(255, 255, 255, 0.9)'
+                                color: isLastItem ? '#FFFFFF' : 'rgba(255, 255, 255, 0.9)'
                               }}
                             >
                         {trans.text}

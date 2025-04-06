@@ -325,7 +325,7 @@ const Dashboard = ({ emotionalState, darkMode, setActiveTab }) => {
                   color: [
                     theme.palette.secondary.light, 
                     theme.palette.secondary.main, 
-                    'white', 
+                    '#FFFFFF', 
                     theme.palette.secondary.light
                   ]
                 }}
@@ -382,9 +382,9 @@ const Dashboard = ({ emotionalState, darkMode, setActiveTab }) => {
                   borderRadius: '20px',
                   px: 3,
                   borderColor: 'rgba(255,255,255,0.5)',
-                  color: 'white',
+                  color: '#FFFFFF',
                   '&:hover': {
-                    borderColor: 'white',
+                    borderColor: '#FFFFFF',
                     backgroundColor: 'rgba(255,255,255,0.1)'
                   }
                 }}

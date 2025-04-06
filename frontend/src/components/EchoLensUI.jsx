@@ -375,7 +375,7 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                   mb: 4, 
                   borderRadius: 4,
                   background: 'linear-gradient(120deg, #2196f3 0%, #21cbf3 100%)',
-                  color: 'white',
+                  color: '#FFFFFF',
                   overflow: 'hidden',
                   position: 'relative'
                 }}
@@ -467,7 +467,7 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                       height: '100%',
                     borderRadius: 2, 
                     background: darkMode ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)',
-                    color: darkMode ? 'white' : 'inherit',
+                    color: darkMode ? '#FFFFFF' : 'inherit',
                       position: 'relative',
                       overflow: 'hidden'
                     }}
@@ -522,7 +522,7 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                       height: '100%',
                     borderRadius: 2, 
                     background: darkMode ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)',
-                    color: darkMode ? 'white' : 'inherit',
+                    color: darkMode ? '#FFFFFF' : 'inherit',
                       position: 'relative',
                       overflow: 'hidden'
                     }}
@@ -622,7 +622,7 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                   mb: 4, 
                   borderRadius: 4,
                   background: 'linear-gradient(120deg, #7b1fa2 0%, #9c27b0 100%)',
-                  color: 'white',
+                  color: '#FFFFFF',
                   overflow: 'hidden',
                   position: 'relative'
                 }}
@@ -714,7 +714,7 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                       height: '100%',
                 borderRadius: 2, 
                 background: darkMode ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)',
-                      color: darkMode ? 'white' : 'inherit',
+                      color: darkMode ? '#FFFFFF' : 'inherit',
                       position: 'relative',
                       overflow: 'hidden'
                     }}
@@ -774,7 +774,7 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                       height: '100%',
                 borderRadius: 2, 
                 background: darkMode ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)',
-                      color: darkMode ? 'white' : 'inherit',
+                      color: darkMode ? '#FFFFFF' : 'inherit',
                       position: 'relative',
                       overflow: 'hidden'
                     }}
@@ -871,7 +871,7 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                   mb: 4, 
                   borderRadius: 4,
                   background: 'linear-gradient(120deg, #ff5722 0%, #ff9800 100%)',
-                  color: 'white',
+                  color: '#FFFFFF',
                   overflow: 'hidden',
                   position: 'relative'
                 }}
@@ -977,7 +977,7 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
                   mb: 4, 
                   borderRadius: 4,
                   background: 'linear-gradient(120deg, #ff5722 0%, #ff9800 100%)',
-                  color: 'white',
+                  color: '#FFFFFF',
                   overflow: 'hidden',
                   position: 'relative'
                 }}
