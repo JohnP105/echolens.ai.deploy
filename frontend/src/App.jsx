@@ -1,131 +1,24 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Container, Box, Typography, Paper, CircularProgress } from '@mui/material';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-// Import components
-import Header from './components/Header';
-import Footer from './components/Footer';
-import Dashboard from './components/Dashboard';
-import EmotionAnalysis from './components/EmotionAnalysis';
+// Import our UI components
+import EchoLensUI from './components/EchoLensUI';
 import ChatInterface from './components/ChatInterface';
-import Settings from './components/Settings';
-import ParticleBackground from './components/ParticleBackground';
-import CustomCursor from './components/CustomCursor';
-import ConfettiEffect from './components/ConfettiEffect';
-import SkeletonLoader from './components/SkeletonLoader';
-
-// Import utilities
-import SoundEffects from './utils/SoundEffects';
-
-// Layout component with AnimatePresence
-const AnimatedRoutes = ({ emotionalState, updateEmotionalState, darkMode }) => {
-  const location = useLocation();
-  const [loading, setLoading] = useState({});
-  
-  // Track loading state for each route
-  const startLoading = (path) => {
-    setLoading(prev => ({ ...prev, [path]: true }));
-    
-    // For demo purposes, simulate loading delay
-    setTimeout(() => {
-      setLoading(prev => ({ ...prev, [path]: false }));
-    }, 1000);
-  };
-  
-  // Change route effect - play sound and start loading
-  useEffect(() => {
-    SoundEffects.playSound('click');
-    startLoading(location.pathname);
-  }, [location.pathname]);
-  
-  return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={
-          loading['/'] 
-            ? <SkeletonLoader type="dashboard" /> 
-            : <Dashboard emotionalState={emotionalState} darkMode={darkMode} />
-        } />
-        <Route
-          path="/analysis"
-          element={
-            loading['/analysis'] 
-              ? <SkeletonLoader type="dashboard" /> 
-              : <EmotionAnalysis updateEmotionalState={updateEmotionalState} darkMode={darkMode} />
-          }
-        />
-        <Route
-          path="/chat"
-          element={
-            loading['/chat'] 
-              ? <SkeletonLoader type="chat" /> 
-              : <ChatInterface emotionalState={emotionalState} darkMode={darkMode} />
-          }
-        />
-        <Route path="/settings" element={
-          loading['/settings'] 
-            ? <SkeletonLoader type="dashboard" /> 
-            : <Settings darkMode={darkMode} />
-        } />
-      </Routes>
-    </AnimatePresence>
-  );
-};
 
 function App() {
-  const [emotionalState, setEmotionalState] = useState({
-    emotion: 'neutral',
-    sentiment: 'neutral',
-    intensity: 'low',
-  });
-  
-  const [darkMode, setDarkMode] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
+  const [emotionalState, setEmotionalState] = useState({ emotion: 'neutral', intensity: 'medium' });
 
-  // Get background class based on emotional state and dark mode
-  const getBackgroundClass = () => {
-    if (['happy', 'excited', 'content'].includes(emotionalState.emotion)) {
-      return 'bg-happy';
-    } else if (['sad', 'depressed', 'anxious'].includes(emotionalState.emotion)) {
-      return 'bg-sad';
-    } else {
-      return darkMode ? 'bg-dark-dynamic' : 'bg-light-dynamic';
-    }
-  };
-  
-  // Trigger confetti for positive emotions
-  useEffect(() => {
-    if (['happy', 'excited', 'content'].includes(emotionalState.emotion)) {
-      setShowConfetti(true);
-      SoundEffects.playSound('success');
-      
-      // Hide confetti after animation
-      setTimeout(() => setShowConfetti(false), 3000);
-    }
-  }, [emotionalState.emotion]);
-  
-  // Preload sounds and initial setup
-  useEffect(() => {
-    // Preload sounds
-    SoundEffects.preloadSounds();
-    
-    // Simulate initial loading
-    const timer = setTimeout(() => {
-      setInitialLoading(false);
-      // Play a welcome sound
-      SoundEffects.playSound('notification');
-    }, 1500);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
+  // Toggle dark mode
   const toggleDarkMode = () => {
-    SoundEffects.playSound('click');
     setDarkMode(!darkMode);
+  };
+
+  // Update emotional state - can be called from AudioVisualization component
+  const updateEmotionalState = (newState) => {
+    setEmotionalState(newState);
   };
 
   // Create a dynamic theme based on the mode
@@ -177,98 +70,49 @@ function App() {
         styleOverrides: {
           body: {
             backgroundAttachment: 'fixed',
+            margin: 0,
+            padding: 0
+          },
+          // Add smooth transition for all color changes
+          '*, *::before, *::after': {
+            transition: 'background-color 0.5s ease, border-color 0.5s ease, color 0.3s ease, box-shadow 0.3s ease',
           },
         },
       },
     },
   }), [darkMode]);
 
-  const updateEmotionalState = (newState) => {
-    setEmotionalState(newState);
-  };
-
-  // Initial loading screen
-  if (initialLoading) {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Box
-          className={darkMode ? 'bg-dark-dynamic' : 'bg-light-dynamic'}
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '100vh',
-          }}
-        >
-          <Box
-            sx={{
-              position: 'relative',
-              width: 120,
-              height: 120,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              mb: 3
-            }}
-          >
-            <CircularProgress size={100} sx={{ position: 'absolute' }} />
-            <Typography 
-              variant="h4" 
-              sx={{ 
-                fontWeight: 'bold',
-                background: 'linear-gradient(45deg, #2196f3, #21CBF3)', 
-                WebkitBackgroundClip: 'text', 
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              RM
-            </Typography>
-          </Box>
-          <Typography variant="h5" sx={{ mb: 1 }}>
-            RoboMind
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Initializing your AI companion...
-          </Typography>
-        </Box>
-      </ThemeProvider>
-    );
-  }
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
-        <Box
-          className={getBackgroundClass()}
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: '100vh',
-            position: 'relative',
-            transition: 'background 0.5s ease',
-          }}
-        >
-          <CustomCursor darkMode={darkMode} />
-          <ParticleBackground darkMode={darkMode} />
-          <ConfettiEffect active={showConfetti} />
-          
-          <Header 
-            emotionalState={emotionalState} 
-            darkMode={darkMode} 
-            toggleDarkMode={toggleDarkMode} 
+        <Routes>
+          <Route 
+            path="/" 
+            element={<EchoLensUI 
+              darkMode={darkMode} 
+              toggleDarkMode={toggleDarkMode}
+              emotionalState={emotionalState}
+              updateEmotionalState={updateEmotionalState}
+            />} 
           />
-          <Container component="main" sx={{ mt: 4, mb: 4, flex: 1, position: 'relative', zIndex: 2 }}>
-            <AnimatedRoutes 
+          <Route 
+            path="/chat" 
+            element={<ChatInterface 
+              darkMode={darkMode} 
               emotionalState={emotionalState} 
-              updateEmotionalState={updateEmotionalState} 
-              darkMode={darkMode}
-            />
-          </Container>
-          <Footer darkMode={darkMode} />
-        </Box>
+            />} 
+          />
+          <Route 
+            path="*" 
+            element={<EchoLensUI 
+              darkMode={darkMode} 
+              toggleDarkMode={toggleDarkMode}
+              emotionalState={emotionalState}
+              updateEmotionalState={updateEmotionalState}
+            />} 
+          />
+        </Routes>
       </Router>
     </ThemeProvider>
   );

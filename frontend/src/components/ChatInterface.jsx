@@ -2,34 +2,41 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
-  TextField, 
-  Button, 
-  List, 
-  ListItem, 
-  ListItemText, 
-  ListItemAvatar, 
-  Avatar, 
-  Divider,
+  Paper, 
+  TextField,
   IconButton,
+  Avatar,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
   CircularProgress,
-  Paper,
-  Snackbar,
+  Tooltip,
+  Chip,
+  Divider,
   Alert,
-  useTheme
+  Snackbar,
+  useTheme,
+  Button
 } from '@mui/material';
+import { motion, AnimatePresence } from 'framer-motion';
 import SendIcon from '@mui/icons-material/Send';
-import MicIcon from '@mui/icons-material/Mic';
-import MicOffIcon from '@mui/icons-material/MicOff';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
-import { motion, AnimatePresence } from 'framer-motion';
+import MoodIcon from '@mui/icons-material/Mood';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import DeleteIcon from '@mui/icons-material/Delete';
+import API from '../utils/API';
+import dataStorage, { saveData, loadData, exportToJsonFile, clearData } from '../utils/dataStorage';
+
+// Use STORAGE_KEYS from the imported module
+const { STORAGE_KEYS } = dataStorage;
 
 // Motion components
-const MotionBox = motion(Box);
 const MotionPaper = motion(Paper);
+const MotionBox = motion(Box);
 const MotionListItem = motion(ListItem);
-const MotionIconButton = motion(IconButton);
-const MotionTypography = motion(Typography);
 
 // Animation variants
 const containerVariants = {
@@ -49,243 +56,215 @@ const itemVariants = {
   visible: { 
     y: 0, 
     opacity: 1,
-    transition: { type: 'spring', stiffness: 50 }
+    transition: { type: 'spring', stiffness: 300, damping: 30 }
   }
 };
 
-const messageVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 500 } },
-  exit: { opacity: 0, y: 20, transition: { duration: 0.2 } }
+// Emotion color mapping
+const emotionColors = {
+  happy: '#4CAF50',
+  excited: '#8BC34A',
+  sad: '#2196F3',
+  angry: '#F44336',
+  frustrated: '#FF9800',
+  confused: '#9C27B0',
+  neutral: '#9E9E9E',
+  sarcastic: '#FF5722',
+  concerned: '#607D8B',
+  surprised: '#00BCD4'
 };
 
-const pulseAnimation = {
-  scale: [1, 1.05, 1],
-  transition: { duration: 1.5, repeat: Infinity }
-};
-
-const ChatInterface = ({ emotionalState }) => {
+const ChatInterface = ({ darkMode, emotionalState }) => {
   const theme = useTheme();
   const [messages, setMessages] = useState([
-    { 
-      id: 1, 
-      text: "Hello! I'm RoboMind, your AI companion. How are you feeling today?", 
-      sender: 'bot',
-      timestamp: new Date() 
-    }
+    { id: 1, text: "Hello! I'm EchoLens.AI, your emotion and sound aware assistant. How can I help you today?", sender: 'bot', emotion: 'neutral', timestamp: new Date() }
   ]);
-  const [newMessage, setNewMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [apiStatus, setApiStatus] = useState({ status: 'checking', gemini_api: 'checking' });
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
   
-  // Speech recognition setup (if available)
-  const [speechRecognition, setSpeechRecognition] = useState(null);
-
+  // Load saved messages on component mount
   useEffect(() => {
-    // Initialize speech recognition if browser supports it
-    if (window.webkitSpeechRecognition || window.SpeechRecognition) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setNewMessage(transcript);
-        setIsRecording(false);
-      };
-      
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error', event.error);
-        setIsRecording(false);
-      };
-      
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-      
-      setSpeechRecognition(recognition);
+    const savedMessages = loadData(STORAGE_KEYS.CHAT_HISTORY, []);
+    if (savedMessages && savedMessages.length > 0) {
+      // Convert timestamp strings back to Date objects
+      const processedMessages = savedMessages.map(msg => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+      setMessages(processedMessages);
     }
   }, []);
-
-  // Scroll to the bottom of the chat when messages update
+  
+  // Save messages whenever they change
   useEffect(() => {
-    scrollToBottom();
+    if (messages.length > 1) {  // Don't save just the welcome message
+      saveData(STORAGE_KEYS.CHAT_HISTORY, messages);
+    }
   }, [messages]);
-
-  // Focus input field on load
+  
+  // Check API status on component mount
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
+    const checkApiStatus = async () => {
+      try {
+        const status = await API.getStatus();
+        setApiStatus(status);
+      } catch (err) {
+        console.error('Error checking API status:', err);
+        setApiStatus({ status: 'offline', gemini_api: 'disconnected' });
+        setError('Unable to connect to EchoLens.AI API');
+      }
+    };
+    
+    checkApiStatus();
+    const interval = setInterval(checkApiStatus, 30000); // Check every 30 seconds
+    
+    return () => clearInterval(interval);
   }, []);
-
-  const scrollToBottom = () => {
+  
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+  
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
   };
-
-  // Toggle voice recording
-  const toggleRecording = () => {
-    if (!speechRecognition) return;
-    
-    if (isRecording) {
-      speechRecognition.stop();
-    } else {
-      speechRecognition.start();
-      setIsRecording(true);
+  
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
   };
-
-  // Handle sending a message
-  const handleSendMessage = async (e) => {
-    e?.preventDefault();
+  
+  const handleSendMessage = async () => {
+    if (!input.trim()) return;
     
-    if (!newMessage.trim()) return;
+    // Check if API is online
+    if (apiStatus.status !== 'online' || apiStatus.gemini_api !== 'connected') {
+      setError('Unable to send message: API is offline');
+      return;
+    }
     
-    // Add user message to chat
     const userMessage = {
-      id: Date.now(),
-      text: newMessage,
+      id: messages.length + 1,
+      text: input.trim(),
       sender: 'user',
       timestamp: new Date()
     };
     
     setMessages(prev => [...prev, userMessage]);
-    setNewMessage('');
-    setIsLoading(true);
+    setInput('');
+    setIsTyping(true);
     
     try {
-      // Prepare emotional context if available
-      let context = {};
-      if (emotionalState && emotionalState.emotion) {
-        context = {
-          emotion: emotionalState.emotion,
-          intensity: emotionalState.intensity || 'medium',
-          sentiment: emotionalState.sentiment || (emotionalState.emotion === 'happy' ? 'positive' : 'negative')
-        };
-      }
+      // First analyze the text for emotion
+      const emotionAnalysis = await API.analyzeText(input.trim());
       
-      // Call the backend API for response
-      const response = await fetch('http://localhost:6900/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: userMessage.text,
-          context: context
-        })
+      // Update user message with emotion
+      setMessages(prev => prev.map(msg => 
+        msg.id === userMessage.id 
+          ? { ...msg, emotion: emotionAnalysis.emotion }
+          : msg
+      ));
+      
+      // Send to chat API with emotional context
+      const response = await API.chat(input.trim(), {
+        emotion: emotionAnalysis.emotion || 'neutral',
+        intensity: 'medium'
       });
       
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Add bot response to chat
-      setMessages(prev => [
-        ...prev, 
-        {
-          id: Date.now(),
-          text: data.response,
-          sender: 'bot',
-          timestamp: new Date()
-        }
-      ]);
-    } catch (error) {
-      console.error('Error sending message to API:', error);
-      setError('Failed to get response. Falling back to local processing.');
-      
-      // Fallback to local processing if API fails
-      const botResponse = getBotResponse(userMessage.text, emotionalState);
-      setMessages(prev => [
-        ...prev, 
-        {
-          id: Date.now(),
-          text: botResponse,
-          sender: 'bot',
-          timestamp: new Date(),
-          isError: true
-        }
-      ]);
+      // Add bot response
+      setMessages(prev => [...prev, {
+        id: prev.length + 1,
+        text: response.response,
+        sender: 'bot',
+        emotion: 'neutral', // Bot responses don't have emotions by default
+        timestamp: new Date()
+      }]);
+    } catch (err) {
+      console.error('Error processing message:', err);
+      setMessages(prev => [...prev, {
+        id: prev.length + 1,
+        text: "I'm sorry, I'm having trouble processing your message right now.",
+        sender: 'bot',
+        isError: true,
+        timestamp: new Date()
+      }]);
+      setError(err.message || 'Failed to process message');
     } finally {
-      setIsLoading(false);
+      setIsTyping(false);
     }
   };
-
-  // Fallback: Get a response based on user message and emotional state
-  const getBotResponse = (message, emotionalState) => {
-    const lowerMsg = message.toLowerCase();
+  
+  const handleExportChat = () => {
+    // Create a formatted chat history with metadata
+    const chatExport = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        totalMessages: messages.length,
+        conversationStart: messages[0]?.timestamp?.toISOString(),
+        conversationEnd: messages[messages.length-1]?.timestamp?.toISOString()
+      },
+      messages: messages.map(msg => ({
+        ...msg,
+        timestamp: msg.timestamp?.toISOString()
+      }))
+    };
     
-    // Check for greetings
-    if (lowerMsg.includes('hello') || lowerMsg.includes('hi') || lowerMsg.includes('hey')) {
-      return "Hello there! How are you feeling today?";
-    }
-    
-    // Check for emotional states
-    if (lowerMsg.includes('sad') || lowerMsg.includes('depressed') || lowerMsg.includes('unhappy')) {
-      return "I'm sorry to hear you're feeling down. Remember that these feelings are temporary. Would you like to talk about what's causing these feelings?";
-    }
-    
-    if (lowerMsg.includes('happy') || lowerMsg.includes('good') || lowerMsg.includes('great')) {
-      return "I'm glad you're feeling good! What's been going well for you lately?";
-    }
-    
-    if (lowerMsg.includes('angry') || lowerMsg.includes('mad') || lowerMsg.includes('upset')) {
-      return "I understand you're feeling frustrated. Taking deep breaths can help calm your nervous system. Would you like to try a quick breathing exercise?";
-    }
-    
-    if (lowerMsg.includes('worried') || lowerMsg.includes('anxious') || lowerMsg.includes('stress')) {
-      return "Anxiety can be challenging. Let's try to break down what's causing your worry. Is there a specific situation that's making you feel this way?";
-    }
-    
-    // Check for questions about the robot
-    if (lowerMsg.includes('who are you') || lowerMsg.includes('what are you')) {
-      return "I'm RoboMind, an AI companion designed to support mental health through emotional awareness and conversation. I'm here to listen and help whenever you need me.";
-    }
-    
-    // Check for help requests
-    if (lowerMsg.includes('help') || lowerMsg.includes('suggestion') || lowerMsg.includes('advice')) {
-      return "I'd be happy to help. To support your mental wellbeing, consider practices like mindfulness meditation, physical exercise, connecting with loved ones, or journaling. Would you like more specific suggestions?";
-    }
-    
-    // Use emotional state for contextual responses if available
-    if (emotionalState && emotionalState.emotion && emotionalState.emotion !== 'neutral') {
-      if (emotionalState.emotion === 'happy') {
-        return "It's wonderful to see you happy! Savoring positive emotions can help them last longer. What's bringing you joy right now?";
-      } else if (emotionalState.emotion === 'sad') {
-        return "I notice you might be feeling sad. Sometimes talking about our feelings can help process them. Would you like to share what's on your mind?";
-      } else if (emotionalState.emotion === 'angry') {
-        return "I sense you might be feeling frustrated. Taking a moment to ground yourself can be helpful. Would you like to try a quick grounding exercise?";
-      }
-    }
-    
-    // Default responses
-    const defaultResponses = [
-      "Tell me more about how you're feeling.",
-      "I'm here to support you. How can I help right now?",
-      "Thank you for sharing that with me. How long have you been feeling this way?",
-      "I appreciate you opening up. What do you think might help in this situation?",
-      "I'm listening. Would you like to explore some coping strategies together?"
-    ];
-    
-    return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+    // Export to JSON file
+    exportToJsonFile(chatExport, 'echolens_chat_history.json');
   };
-
-  // Format time for message timestamps
+  
+  const handleClearChat = () => {
+    // Only keep the welcome message
+    const welcomeMessage = {
+      id: 1, 
+      text: "Hello! I'm EchoLens.AI, your emotion and sound aware assistant. How can I help you today?", 
+      sender: 'bot', 
+      emotion: 'neutral', 
+      timestamp: new Date()
+    };
+    
+    setMessages([welcomeMessage]);
+    clearData(STORAGE_KEYS.CHAT_HISTORY);
+  };
+  
+  // Get background color for message bubble
+  const getMessageBackground = (message) => {
+    if (message.isError) return theme.palette.error.light;
+    if (message.sender === 'bot') return theme.palette.primary.light;
+    
+    // If user message has emotion, use a gradient with the emotion color
+    if (message.emotion && emotionColors[message.emotion]) {
+      return `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${emotionColors[message.emotion]} 100%)`;
+    }
+    
+    return theme.palette.background.paper;
+  };
+  
+  // Get text color for message
+  const getMessageColor = (message) => {
+    if (message.isError) return '#FFFFFF';
+    if (message.sender === 'bot') return '#FFFFFF';
+    
+    // For user messages with strong emotions, use white text
+    const strongEmotions = ['angry', 'excited', 'happy'];
+    if (message.emotion && strongEmotions.includes(message.emotion)) {
+      return '#FFFFFF';
+    }
+    
+    return theme.palette.text.primary;
+  };
+  
+  // Format timestamp
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-
-  // Close error snackbar
-  const handleCloseError = () => {
-    setError(null);
-  };
-
+  
   return (
     <MotionBox
       component={motion.div}
@@ -293,254 +272,308 @@ const ChatInterface = ({ emotionalState }) => {
       initial="hidden"
       animate="visible"
       exit="exit"
-      sx={{
-        height: '80vh',
+      sx={{ 
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        height: 'calc(100vh - 180px)',
+        maxHeight: 'calc(100vh - 180px)',
+        borderRadius: 4,
+        overflow: 'hidden'
       }}
     >
-      {/* Chat header */}
-      <MotionPaper 
-        component={motion.div}
-        variants={itemVariants}
-        elevation={2} 
-        sx={{ 
-          p: 2, 
-          mb: 2, 
-          display: 'flex', 
-          alignItems: 'center',
-          background: 'linear-gradient(90deg, #2196f3 0%, #21CBF3 100%)',
-          color: 'white',
-          borderRadius: '12px'
-        }}
-      >
-        <MotionBox
-          animate={{
-            rotate: [0, 10, 0, -10, 0],
-            transition: { duration: 3, repeat: Infinity }
-          }}
-          sx={{ mr: 2 }}
-        >
-          <SmartToyIcon sx={{ fontSize: 32 }} />
-        </MotionBox>
-        <Box>
-          <MotionTypography variant="h6" fontWeight="bold">
-            Chat with RoboMind
-          </MotionTypography>
-          <MotionTypography variant="caption">
-            Your AI Mental Health Companion
-          </MotionTypography>
-        </Box>
-        {emotionalState && emotionalState.emotion !== 'neutral' && (
-          <MotionBox 
-            sx={{ ml: 'auto', mr: 1 }}
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-          >
-            <Typography variant="body2">
-              Current Emotion: <strong>{emotionalState.emotion}</strong>
-            </Typography>
-          </MotionBox>
-        )}
-      </MotionPaper>
-
-      {/* Chat messages */}
-      <MotionPaper 
-        component={motion.div}
-        variants={itemVariants}
-        elevation={3} 
-        sx={{ 
-          p: 2, 
-          flexGrow: 1, 
-          overflowY: 'auto',
-          borderRadius: '12px',
-          bgcolor: 'background.default',
+      {/* Header */}
+      <Paper 
+        elevation={2}
+        sx={{
+          p: 2,
+          borderRadius: '16px 16px 0 0',
+          background: 'linear-gradient(90deg, #1976d2 0%, #4fc3f7 100%)',
           display: 'flex',
-          flexDirection: 'column'
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}
       >
-        <List sx={{ width: '100%', flexGrow: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Avatar 
+            sx={{ 
+              bgcolor: '#FFFFFF',
+              mr: 2
+            }}
+          >
+            <SmartToyIcon color="primary" />
+          </Avatar>
+          <Box>
+            <Typography variant="h6" sx={{ color: '#FFFFFF', fontWeight: 'bold' }}>
+              EchoLens Chat
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+              AI-powered with emotion recognition
+            </Typography>
+          </Box>
+        </Box>
+        
+        <Box>
+          <Tooltip title="Clear chat history">
+            <IconButton 
+              color="inherit" 
+              onClick={handleClearChat}
+              disabled={messages.length <= 1}
+              sx={{ mr: 1 }}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Tooltip>
+          
+          <Tooltip title="Export chat history to JSON">
+            <IconButton 
+              color="inherit" 
+              onClick={handleExportChat}
+              disabled={messages.length <= 1}
+            >
+              <FileDownloadIcon />
+            </IconButton>
+          </Tooltip>
+          
+          <Chip 
+            size="small"
+            label={`${apiStatus.status === 'online' ? 'Online' : 'Offline'}`}
+            color={apiStatus.status === 'online' ? 'success' : 'error'}
+            sx={{ ml: 1 }}
+          />
+        </Box>
+      </Paper>
+
+      {/* Messages Container */}
+      <Paper
+        elevation={0}
+        sx={{
+          flex: 1,
+          overflowY: 'auto',
+          p: 2,
+          backgroundImage: darkMode 
+            ? 'linear-gradient(rgba(0, 0, 0, 0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.8) 1px, transparent 1px)'
+            : 'linear-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.1) 1px, transparent 1px)',
+          backgroundSize: '20px 20px'
+        }}
+      >
+        <List sx={{ width: '100%' }}>
           <AnimatePresence>
-            {messages.map((message) => (
+            {messages.map(message => (
               <MotionListItem
                 key={message.id}
-                component={motion.li}
-                variants={messageVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                sx={{ 
-                  flexDirection: message.sender === 'user' ? 'row-reverse' : 'row',
-                  alignItems: 'flex-start',
-                  mb: 1
+                variants={itemVariants}
+                sx={{
+                  display: 'flex',
+                  justifyContent: message.sender === 'user' ? 'flex-end' : 'flex-start',
+                  p: 1
                 }}
+                disableGutters
+                disablePadding
               >
-                <ListItemAvatar sx={{ minWidth: '45px' }}>
+                <Box
+                  sx={{
+                    maxWidth: '70%',
+                    display: 'flex',
+                    flexDirection: message.sender === 'user' ? 'row-reverse' : 'row',
+                    alignItems: 'flex-start',
+                    gap: 1
+                  }}
+                >
                   <Avatar 
                     sx={{ 
-                      bgcolor: message.sender === 'bot' 
-                        ? 'primary.main' 
-                        : 'secondary.main',
-                      width: 38, 
-                      height: 38
+                      bgcolor: message.sender === 'user' 
+                        ? theme.palette.secondary.main 
+                        : theme.palette.primary.main
                     }}
                   >
-                    {message.sender === 'bot' ? <SmartToyIcon /> : <PersonIcon />}
-                  </Avatar>
-                </ListItemAvatar>
-                <MotionPaper
-                  sx={{
-                    p: 1.5,
-                    px: 2,
-                    maxWidth: '70%',
-                    borderRadius: message.sender === 'user' 
-                      ? '18px 4px 18px 18px' 
-                      : '4px 18px 18px 18px',
-                    bgcolor: message.sender === 'user' 
-                      ? 'secondary.light' 
+                    {message.sender === 'user' 
+                      ? <PersonIcon /> 
                       : message.isError 
-                        ? '#FFF3F3' 
-                        : 'primary.light',
-                    color: (message.sender === 'user' || (message.sender === 'bot' && !message.isError))
-                      ? 'white' 
-                      : 'text.primary',
-                    boxShadow: 1
-                  }}
-                  whileHover={{ scale: 1.01 }}
-                >
-                  <ListItemText 
-                    primary={message.text} 
-                    secondary={formatTime(message.timestamp)}
-                    primaryTypographyProps={{
-                      variant: 'body1',
-                      sx: { 
-                        wordBreak: 'break-word',
-                        color: (message.sender === 'user' || (message.sender === 'bot' && !message.isError)) 
-                          ? 'white' 
-                          : 'text.primary'
-                      }
-                    }}
-                    secondaryTypographyProps={{
-                      align: 'right',
-                      variant: 'caption',
-                      sx: { 
-                        mt: 0.5, 
-                        opacity: 0.7,
-                        color: (message.sender === 'user' || (message.sender === 'bot' && !message.isError)) 
-                          ? 'white' 
-                          : 'inherit'
-                      }
-                    }}
-                  />
-                </MotionPaper>
+                        ? <ErrorOutlineIcon /> 
+                        : <SmartToyIcon />
+                    }
+                  </Avatar>
+                  
+                  <Box>
+                    <Paper
+                      elevation={2}
+                      sx={{
+                        p: 2,
+                        borderRadius: message.sender === 'user' 
+                          ? '20px 20px 0px 20px' 
+                          : '20px 20px 20px 0px',
+                        background: getMessageBackground(message),
+                        position: 'relative',
+                        maxWidth: '100%'
+                      }}
+                    >
+                      <Typography 
+                        variant="body1" 
+                        sx={{ 
+                          color: getMessageColor(message),
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word'
+                        }}
+                      >
+                        {message.text}
+                      </Typography>
+                      
+                      {/* Show emotion chip for user messages */}
+                      {message.sender === 'user' && message.emotion && (
+                        <Chip
+                          size="small"
+                          icon={<MoodIcon fontSize="small" />}
+                          label={message.emotion}
+                          sx={{
+                            position: 'absolute',
+                            top: -12,
+                            right: 12,
+                            background: emotionColors[message.emotion],
+                            color: '#FFFFFF',
+                            fontWeight: 'bold',
+                            fontSize: '0.7rem'
+                          }}
+                        />
+                      )}
+                    </Paper>
+                    
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        color: 'text.secondary',
+                        pl: message.sender === 'user' ? 0 : 1,
+                        pr: message.sender === 'user' ? 1 : 0,
+                        textAlign: message.sender === 'user' ? 'right' : 'left',
+                        display: 'block',
+                        mt: 0.5
+                      }}
+                    >
+                      {formatTime(message.timestamp)}
+                    </Typography>
+                  </Box>
+                </Box>
               </MotionListItem>
             ))}
           </AnimatePresence>
           
-          {/* Show typing animation when loading */}
-          {isLoading && (
-            <MotionListItem
-              component={motion.li}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              sx={{ alignItems: 'flex-start' }}
+          {/* Typing indicator */}
+          {isTyping && (
+            <ListItem
+              sx={{
+                display: 'flex',
+                justifyContent: 'flex-start',
+                p: 1
+              }}
+              disableGutters
+              disablePadding
             >
-              <ListItemAvatar>
-                <Avatar sx={{ bgcolor: 'primary.main' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
                   <SmartToyIcon />
                 </Avatar>
-              </ListItemAvatar>
-              <MotionPaper
-                animate={pulseAnimation}
-                sx={{
-                  p: 2,
-                  px: 3,
-                  borderRadius: '4px 18px 18px 18px',
-                  bgcolor: 'primary.light',
-                  display: 'flex',
-                  gap: 1,
-                  alignItems: 'center'
-                }}
-              >
-                <Box sx={{ opacity: 0.6 }}>
-                  <SmartToyIcon sx={{ fontSize: 10 }} />
-                </Box>
-                <Box sx={{ opacity: 0.8 }}>
-                  <SmartToyIcon sx={{ fontSize: 10 }} />
-                </Box>
-                <Box>
-                  <SmartToyIcon sx={{ fontSize: 10 }} />
-                </Box>
-              </MotionPaper>
-            </MotionListItem>
+                <Paper
+                  elevation={2}
+                  sx={{
+                    p: 2,
+                    borderRadius: '20px 20px 20px 0px',
+                    background: theme.palette.primary.light,
+                    display: 'flex',
+                    alignItems: 'center',
+                    minWidth: 80
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <MotionBox
+                      animate={{ y: [0, -5, 0] }}
+                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 0.1 }}
+                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#FFFFFF' }}
+                    />
+                    <MotionBox
+                      animate={{ y: [0, -5, 0] }}
+                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 0.2, delay: 0.1 }}
+                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#FFFFFF' }}
+                    />
+                    <MotionBox
+                      animate={{ y: [0, -5, 0] }}
+                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 0.3, delay: 0.2 }}
+                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#FFFFFF' }}
+                    />
+                  </Box>
+                </Paper>
+              </Box>
+            </ListItem>
           )}
-
+          
           <div ref={messagesEndRef} />
         </List>
-      </MotionPaper>
+      </Paper>
 
-      {/* Message input */}
-      <MotionPaper 
+      {/* Input Container */}
+      <Paper
+        elevation={3}
         component="form"
-        variants={itemVariants}
-        onSubmit={handleSendMessage}
-        elevation={3} 
-        sx={{ 
-          p: 2, 
-          mt: 2, 
-          display: 'flex', 
+        onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
+        sx={{
+          p: 2,
+          borderRadius: '0 0 16px 16px',
+          display: 'flex',
           alignItems: 'center',
-          borderRadius: '12px',
-          bgcolor: 'background.paper'
+          gap: 2
         }}
       >
         <TextField
-          inputRef={inputRef}
           fullWidth
           variant="outlined"
           placeholder="Type your message..."
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          sx={{ 
-            mr: 1,
+          value={input}
+          onChange={handleInputChange}
+          onKeyPress={handleKeyPress}
+          disabled={apiStatus.status !== 'online' || apiStatus.gemini_api !== 'connected'}
+          sx={{
             '& .MuiOutlinedInput-root': {
-              borderRadius: 3,
-              backgroundColor: theme.palette.background.default
+              borderRadius: '20px',
+              backgroundColor: theme.palette.mode === 'dark' 
+                ? 'rgba(255, 255, 255, 0.05)' 
+                : 'rgba(0, 0, 0, 0.02)'
             }
           }}
+          InputProps={{
+            endAdornment: apiStatus.status !== 'online' || apiStatus.gemini_api !== 'connected' 
+              ? <Tooltip title="API is currently offline">
+                  <ErrorOutlineIcon color="error" sx={{ mx: 1 }} />
+                </Tooltip>
+              : null
+          }}
         />
-        {speechRecognition && (
-          <MotionIconButton 
-            color={isRecording ? 'secondary' : 'primary'} 
-            onClick={toggleRecording}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            animate={isRecording ? { scale: [1, 1.1, 1], transition: { repeat: Infinity, duration: 1 } } : {}}
-          >
-            {isRecording ? <MicOffIcon /> : <MicIcon />}
-          </MotionIconButton>
-        )}
-        <MotionIconButton 
-          color="primary" 
+        <IconButton 
+          color="primary"
           onClick={handleSendMessage}
-          disabled={!newMessage.trim()}
-          whileHover={{ scale: 1.1, rotate: 15 }}
-          whileTap={{ scale: 0.9 }}
-          sx={{ ml: 1 }}
+          disabled={!input.trim() || apiStatus.status !== 'online' || apiStatus.gemini_api !== 'connected'}
+          sx={{ 
+            p: 2,
+            bgcolor: theme.palette.primary.main,
+            color: '#FFFFFF',
+            '&:hover': {
+              bgcolor: theme.palette.primary.dark
+            },
+            '&.Mui-disabled': {
+              bgcolor: theme.palette.action.disabledBackground,
+              color: theme.palette.action.disabled
+            }
+          }}
         >
           <SendIcon />
-        </MotionIconButton>
-      </MotionPaper>
-
-      {/* Error notification */}
+        </IconButton>
+      </Paper>
+      
+      {/* Error Snackbar */}
       <Snackbar 
         open={!!error} 
         autoHideDuration={6000} 
-        onClose={handleCloseError}
+        onClose={() => setError(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert onClose={handleCloseError} severity="warning" sx={{ width: '100%' }}>
+        <Alert onClose={() => setError(null)} severity="error" sx={{ width: '100%' }}>
           {error}
         </Alert>
       </Snackbar>
