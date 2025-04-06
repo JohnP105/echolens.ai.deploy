@@ -1,11 +1,14 @@
 FROM python:3.9-slim
 
-# Install system dependencies including PortAudio
+# Install system dependencies including PortAudio and C++ build tools
 RUN apt-get update && apt-get install -y \
     portaudio19-dev \
     python3-pyaudio \
     libsndfile1 \
     ffmpeg \
+    build-essential \
+    g++ \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
