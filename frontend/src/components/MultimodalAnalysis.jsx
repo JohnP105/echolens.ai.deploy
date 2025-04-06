@@ -276,7 +276,7 @@ const MultimodalAnalysis = ({ darkMode }) => {
                   {cameraActive ? (
                     // Use MJPEG streaming for smoother video
                     <iframe
-                      src={`http://localhost:5000/api/camera/stream`}
+                      src={`${API_BASE_URL}/camera/stream`}
                       title="Camera stream"
                       style={{ 
                         width: '100%', 
