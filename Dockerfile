@@ -20,12 +20,13 @@ COPY . .
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Set environment variables
-ENV PORT=10000
 ENV FLASK_ENV=production
+# Don't hardcode the port - Render will provide it
+# ENV PORT=10000
 
 # Expose the port
 EXPOSE 10000
 
-# Change to backend directory and run the application
+# Change to backend directory and run the application with the wrapper script
 WORKDIR /app/backend
-CMD ["python", "echolens_api.py"] 
+CMD ["python", "app_wrapper.py"] 
