@@ -84,6 +84,32 @@ const generateMockData = {
 
 class API {
   /**
+   * Get the API base URL
+   * @returns {string} API base URL
+   */
+  static getApiBaseUrl() {
+    return API_BASE_URL;
+  }
+  
+  /**
+   * Check the status of the backend API
+   * @returns {Promise<Object>} Server status information
+   */
+  static async checkStatus() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/status`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error checking status:', error);
+      return {
+        status: 'error',
+        message: 'Could not connect to server',
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
    * Check API status and connections
    * @returns {Promise<Object>} API status information
    */
@@ -227,6 +253,106 @@ class API {
   }
 
   /**
+   * Analyze the environment using multimodal capabilities (audio + visual)
+   * @param {Object} data - The data for analysis including transcription, sounds, etc.
+   * @returns {Promise<Object>} Multimodal analysis results
+   */
+  static async analyzeEnvironment(data) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/analyze/environment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error analyzing environment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Start the camera for visual input
+   * @returns {Promise<Object>} Response
+   */
+  static async startCamera() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/camera/start`, {
+        method: 'POST',
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error starting camera:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Stop the camera
+   * @returns {Promise<Object>} Response
+   */
+  static async stopCamera() {
+    try {
+      console.log('Stopping camera...');
+      const response = await fetch(`${API_BASE_URL}/camera/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        console.error(`Error stopping camera: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Camera stop response:', data);
+      return data;
+    } catch (error) {
+      console.error('Error stopping camera:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the latest camera snapshot
+   * @returns {Promise<Object>} Response with base64 image
+   */
+  static async getCameraSnapshot() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/camera/snapshot`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error getting camera snapshot:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Enhanced chat with environmental context
+   * @param {string} message - User message
+   * @param {Object} context - Environmental context data
+   * @returns {Promise<Object>} Chat response
+   */
+  static async chatWithContext(message, context = {}) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat_with_context`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message, context }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error in contextual chat:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Analyze audio sample (mock method for now)
    * @returns {Promise<Object>} Analysis results
    */
@@ -238,31 +364,6 @@ class API {
       return await response.json();
     } catch (error) {
       console.error('Error analyzing audio:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Send message to chat endpoint with emotional context
-   * @param {string} message - User message to send
-   * @param {Object} context - Optional context object (emotion, intensity, etc.)
-   * @returns {Promise<Object>} Chat response
-   */
-  static async chat(message, context = {}) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          message,
-          context 
-        }),
-      });
-      return await response.json();
-    } catch (error) {
-      console.error('Error sending chat message:', error);
       throw error;
     }
   }
@@ -306,6 +407,31 @@ class API {
       return await response.json();
     } catch (error) {
       console.error('Error updating calibration settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send message to chat endpoint with emotional context
+   * @param {string} message - User message to send
+   * @param {Object} context - Optional context object (emotion, intensity, etc.)
+   * @returns {Promise<Object>} Chat response
+   */
+  static async chat(message, context = {}) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          message,
+          context 
+        }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error sending chat message:', error);
       throw error;
     }
   }

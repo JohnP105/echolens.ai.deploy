@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import os
 import json
@@ -6,6 +6,11 @@ import time
 import logging
 import threading
 import numpy as np
+import base64
+import random
+import cv2
+from io import BytesIO
+from PIL import Image
 
 # Load environment variables from .env file
 try:
@@ -36,7 +41,6 @@ import speech_recognition as sr
 from scipy import signal
 import tensorflow as tf
 import tensorflow_hub as hub
-import random  # For demo/test data generation
 
 # Define log file path
 log_file_path = os.path.join(os.path.dirname(__file__), 'echolens.log')
@@ -109,10 +113,33 @@ try:
             safety_settings=safety_settings
         )
         
+        # Initialize a conversation model for maintaining context
+        convo_model = genai.GenerativeModel(
+            model_name=target_model,
+            generation_config=generation_config,
+            safety_settings=safety_settings
+        )
+        
+        # Create a chat session
+        chat = convo_model.start_chat(
+            history=[
+                {
+                    "role": "user",
+                    "parts": ["You are EchoLens.AI, an intelligent assistant for deaf and hard-of-hearing users. You help them understand their audio environment and provide context about sounds, speech, and emotions."]
+                },
+                {
+                    "role": "model",
+                    "parts": ["I understand my role as EchoLens.AI. I'll help deaf and hard-of-hearing users by providing detailed information about their audio environment, including identifying sounds, transcribing speech, analyzing emotional context, and offering relevant spatial awareness details. I'll be concise, clear, and focus on providing the most important audio information."]
+                }
+            ]
+        )
+        
         logger.info(f"Gemini API configured successfully with model: {target_model}")
 except Exception as e:
     logger.error(f"Failed to configure Gemini API: {str(e)}")
     model = None
+    chat = None
+    convo_model = None
 
 # Load YAMNet model for audio classification
 try:
@@ -199,6 +226,13 @@ last_restart_time = 0
 # Flag for demo processing
 is_demo_processing = False
 
+# Initialize webcam variables
+webcam = None
+last_frame = None
+is_capturing_video = False
+frame_buffer = []
+MAX_BUFFER_SIZE = 5
+
 def detect_sound_direction(left_channel, right_channel):
     """
     Detect the direction of a sound based on stereo channel data.
@@ -250,12 +284,187 @@ def detect_sound_direction(left_channel, right_channel):
         logger.error(f"Error in direction detection: {str(e)}")
         return {"angle": 0, "direction": "unknown", "confidence": 0}
 
-def analyze_emotion_with_gemini(text):
+# Function to start webcam capture with improved performance
+def start_webcam_capture():
+    global webcam, is_capturing_video
+    try:
+        if webcam is None:
+            webcam = cv2.VideoCapture(0)
+            webcam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Set lower resolution for better performance
+            webcam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            webcam.set(cv2.CAP_PROP_FPS, 20)  # Try to capture at higher FPS
+            
+            if not webcam.isOpened():
+                logger.error("Failed to open webcam")
+                return False
+        
+        is_capturing_video = True
+        threading.Thread(target=webcam_capture_thread, daemon=True).start()
+        logger.info("Webcam capture started successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error starting webcam: {str(e)}")
+        return False
+
+# Function to stop webcam capture
+def stop_webcam_capture():
+    global webcam, is_capturing_video
+    try:
+        is_capturing_video = False
+        if webcam is not None:
+            webcam.release()
+            webcam = None
+        logger.info("Webcam capture stopped")
+        return True
+    except Exception as e:
+        logger.error(f"Error stopping webcam: {str(e)}")
+        return False
+
+# Thread for capturing webcam frames with optimized performance
+def webcam_capture_thread():
+    global webcam, last_frame, is_capturing_video, frame_buffer
+    last_capture_time = time.time()
+    frames_captured = 0
+    
+    while is_capturing_video and webcam is not None:
+        try:
+            ret, frame = webcam.read()
+            if ret:
+                # Keep a small buffer of recent frames
+                frame_buffer.append(frame)
+                if len(frame_buffer) > MAX_BUFFER_SIZE:
+                    frame_buffer.pop(0)
+                
+                # The most recent frame for snapshot requests
+                last_frame = frame
+                
+                # Calculate actual FPS
+                frames_captured += 1
+                current_time = time.time()
+                if current_time - last_capture_time >= 5:  # Log FPS every 5 seconds
+                    fps = frames_captured / (current_time - last_capture_time)
+                    logger.debug(f"Camera capture FPS: {fps:.2f}")
+                    frames_captured = 0
+                    last_capture_time = current_time
+            else:
+                logger.warning("Failed to capture frame")
+                # Short sleep to prevent CPU spinning on frame capture failure
+                time.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Error in webcam capture: {str(e)}")
+            time.sleep(0.5)  # Sleep on error to prevent high CPU usage
+
+# Function to get the latest webcam frame as base64 with optimized encoding
+def get_latest_frame_base64(quality=70):
+    global last_frame
+    if last_frame is None:
+        return None
+    
+    try:
+        # Use lower quality JPEG encoding for faster transfer
+        encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+        _, buffer = cv2.imencode('.jpg', last_frame, encode_params)
+        return base64.b64encode(buffer).decode('utf-8')
+    except Exception as e:
+        logger.error(f"Error encoding webcam frame: {str(e)}")
+        return None
+
+def analyze_multimodal_with_gemini(audio_text, image_base64=None, sound_classes=None, direction_data=None, emotion_data=None):
     """
-    Analyze the emotional content of text using Gemini API
+    Perform multimodal analysis using Gemini with both audio transcription and visual data
+    
+    Args:
+        audio_text: Transcribed audio text
+        image_base64: Base64 encoded image data
+        sound_classes: Detected sound classes
+        direction_data: Sound direction information
+        emotion_data: Detected emotions
+        
+    Returns:
+        Dict with multimodal analysis results
+    """
+    if not model:
+        return {
+            "analysis": "Gemini API not available. Using basic analysis.",
+            "context": "No advanced context available without Gemini API."
+        }
+    
+    try:
+        # Prepare sound classes as formatted text
+        sound_text = "No sounds detected"
+        if sound_classes and len(sound_classes) > 0:
+            sound_list = ", ".join([f"{s['label']} ({int(s['score']*100)}%)" for s in sound_classes[:3]])
+            sound_text = f"Detected sounds: {sound_list}"
+        
+        # Prepare direction data as text
+        direction_text = "Unknown direction"
+        if direction_data:
+            direction_text = f"Sound coming from: {direction_data.get('direction', 'unknown')} direction"
+        
+        # Prepare emotion data as text
+        emotion_text = "No emotion detected"
+        if emotion_data:
+            emotion_text = f"Detected emotion: {emotion_data.get('emotion', 'neutral')} (confidence: {emotion_data.get('confidence', 0):.2f})"
+        
+        # Create parts for the prompt
+        parts = [
+            "You are EchoLens.AI, an advanced audio environment analyzer for deaf and hard-of-hearing users.",
+            "Your task is to analyze both visual and audio information to provide a complete understanding of what's happening.",
+            "Provide context, identify potential audio events that might be occurring based on the image, and explain the relationship between what's seen and heard.",
+            "\nInformation available:"
+        ]
+        
+        if audio_text:
+            parts.append(f"\nTranscribed speech: \"{audio_text}\"")
+        
+        parts.append(f"\n{sound_text}")
+        parts.append(f"\n{direction_text}")
+        parts.append(f"\n{emotion_text}")
+        
+        # Add any additional contextual instructions
+        parts.append("\nProvide the following in your response:")
+        parts.append("1. A brief description of what's happening (combining visual and audio information)")
+        parts.append("2. Important sounds that might be present in this environment even if not detected")
+        parts.append("3. Any safety concerns or important information for a deaf or hard-of-hearing user")
+        parts.append("\nFormat the response in a clear, concise way. Keep the entire response under 150 words.")
+        
+        # Create prompt using all text parts
+        prompt = "\n".join(parts)
+        
+        # If we have an image, create multimodal content
+        if image_base64:
+            response = model.generate_content(
+                [
+                    prompt,
+                    {
+                        "mime_type": "image/jpeg",
+                        "data": base64.b64decode(image_base64)
+                    }
+                ]
+            )
+        else:
+            # Text-only analysis
+            response = model.generate_content(prompt)
+        
+        # Return the analysis result
+        return {
+            "analysis": response.text,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error in multimodal analysis: {str(e)}")
+        return {
+            "analysis": f"Error performing analysis: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+def analyze_emotion_with_gemini(text, image_base64=None):
+    """
+    Analyze the emotional content of text and optional image using Gemini API
     
     Args:
         text: The text to analyze
+        image_base64: Optional base64 encoded image for multimodal analysis
         
     Returns:
         Dict with emotion analysis
@@ -267,19 +476,51 @@ def analyze_emotion_with_gemini(text):
         return emotion_analysis
     
     try:
-        prompt = f"""
-        Analyze the emotional tone of this text. Respond in JSON format with the following fields:
-        - emotion: The primary emotion (happy, excited, sad, angry, surprised, confused, frustrated, neutral, concerned, sarcastic)
-        - confidence: A number between 0 and 1 indicating confidence
-        - intensity: A number between 0 and 1 indicating intensity
-        - explanation: Short explanation of why you detected this emotion
-        
-        Text to analyze: "{text}"
-        
-        JSON response:
-        """
-        
-        response = model.generate_content(prompt)
+        # If we have both text and image, perform multimodal emotion analysis
+        if image_base64:
+            prompt = f"""
+            Analyze the emotional tone of this person based on both their text and facial expression.
+            Focus on detecting emotions like happy, excited, sad, angry, surprised, confused, frustrated, neutral, concerned, or sarcastic.
+            
+            Consider both the facial expression in the image AND the text content.
+            
+            Text to analyze: "{text}"
+            
+            Respond in JSON format with the following fields:
+            - emotion: The primary emotion (happy, excited, sad, angry, surprised, confused, frustrated, neutral, concerned, sarcastic)
+            - confidence: A number between 0 and 1 indicating confidence
+            - intensity: A number between 0 and 1 indicating intensity
+            - visual_cues: Brief description of visual emotional cues observed in the image
+            - text_cues: Brief description of emotional cues in the text
+            - explanation: Short explanation considering both visual and textual information
+            
+            JSON response:
+            """
+            
+            response = model.generate_content(
+                [
+                    prompt,
+                    {
+                        "mime_type": "image/jpeg", 
+                        "data": base64.b64decode(image_base64)
+                    }
+                ]
+            )
+        else:
+            # Text-only emotion analysis
+            prompt = f"""
+            Analyze the emotional tone of this text. Respond in JSON format with the following fields:
+            - emotion: The primary emotion (happy, excited, sad, angry, surprised, confused, frustrated, neutral, concerned, sarcastic)
+            - confidence: A number between 0 and 1 indicating confidence
+            - intensity: A number between 0 and 1 indicating intensity
+            - explanation: Short explanation of why you detected this emotion
+            
+            Text to analyze: "{text}"
+            
+            JSON response:
+            """
+            
+            response = model.generate_content(prompt)
         
         try:
             # Parse JSON from response
@@ -962,6 +1203,191 @@ def on_first_request():
         # Start real audio processing
         threading.Thread(target=audio_processing_thread, daemon=True).start()
         logger.info("Auto-started microphone processing")
+
+# ========== API ENDPOINTS FOR MULTIMODAL FEATURES ==========
+
+@app.route('/api/analyze/environment', methods=['POST'])
+def analyze_environment():
+    """
+    Analyze the user's environment using multimodal input (audio + visual)
+    """
+    # Check if Gemini model is available
+    if model is None:
+        return jsonify({
+            "error": "Gemini API is not available. Please configure a valid API key.",
+            "analysis": "I'm sorry, I can't analyze your environment right now because the Gemini API is not configured.",
+            "timestamp": datetime.now().isoformat()
+        }), 503
+    
+    try:
+        # Get request data
+        data = request.get_json()
+        
+        # Extract available data
+        audio_text = data.get('transcription', '')
+        sound_classes = data.get('sounds', [])
+        direction_data = data.get('direction', {})
+        emotion_data = data.get('emotion', {})
+        
+        # Get latest camera frame if available
+        image_base64 = get_latest_frame_base64()
+        
+        # Perform multimodal analysis
+        analysis = analyze_multimodal_with_gemini(
+            audio_text, 
+            image_base64, 
+            sound_classes, 
+            direction_data, 
+            emotion_data
+        )
+        
+        # Return the analysis
+        return jsonify(analysis)
+    except Exception as e:
+        logger.error(f"Error in environment analysis endpoint: {str(e)}")
+        return jsonify({
+            "error": f"Failed to analyze environment: {str(e)}",
+            "analysis": "An error occurred while analyzing your environment.",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/camera/start', methods=['POST'])
+def start_camera():
+    """
+    Start the webcam for visual input
+    """
+    if start_webcam_capture():
+        return jsonify({"status": "success", "message": "Camera started successfully"})
+    else:
+        return jsonify({"status": "error", "message": "Failed to start camera"}), 500
+
+@app.route('/api/camera/stop', methods=['POST'])
+def stop_camera():
+    """
+    Stop the webcam
+    """
+    if stop_webcam_capture():
+        return jsonify({"status": "success", "message": "Camera stopped successfully"})
+    else:
+        return jsonify({"status": "error", "message": "Failed to stop camera"}), 500
+
+@app.route('/api/camera/snapshot')
+def get_camera_snapshot():
+    """
+    Get the latest camera snapshot as base64
+    """
+    quality = request.args.get('quality', default=70, type=int)
+    image_base64 = get_latest_frame_base64(quality)
+    if image_base64:
+        return jsonify({
+            "status": "success", 
+            "image": image_base64,
+            "timestamp": datetime.now().isoformat()
+        })
+    else:
+        return jsonify({
+            "status": "error", 
+            "message": "No camera image available"
+        }), 404
+
+@app.route('/api/chat_with_context', methods=['POST'])
+def chat_with_context():
+    """
+    Enhanced chat with environmental context and conversation history
+    """
+    # Check if Gemini model is available
+    if model is None or chat is None:
+        return jsonify({
+            "error": "Gemini API is not available. Please configure a valid API key.",
+            "response": "I'm sorry, I can't process your message right now because the Gemini API is not configured.",
+            "timestamp": datetime.now().isoformat()
+        }), 503
+    
+    try:
+        # Get request data
+        data = request.get_json()
+        message = data.get('message', '')
+        context = data.get('context', {})
+        
+        # Get environmental context if available
+        sounds = context.get('sounds', [])
+        sound_text = "No sounds detected"
+        if sounds and len(sounds) > 0:
+            sound_text = "Detected sounds: " + ", ".join([s.get('label', 'unknown') for s in sounds[:3]])
+        
+        # Get emotional context if available
+        emotion = context.get('emotion', {})
+        emotion_text = f"Your emotional state: {emotion.get('emotion', 'neutral')} (intensity: {emotion.get('intensity', 'medium')})"
+        
+        # Get visual context if available
+        image_base64 = get_latest_frame_base64()
+        
+        # Create the prompt with all context information
+        prompt = f"""User message: {message}
+        
+Environmental context:
+- {sound_text}
+- {emotion_text}
+- Sound direction: {context.get('direction', {}).get('direction', 'unknown')}
+        
+Respond in a helpful, concise way while considering all this context information.
+"""
+        
+        # Send to the chat API with all context
+        if image_base64:
+            # Multimodal input with image
+            response = chat.send_message(
+                [
+                    prompt,
+                    {
+                        "mime_type": "image/jpeg",
+                        "data": base64.b64decode(image_base64)
+                    }
+                ]
+            )
+        else:
+            # Text-only input
+            response = chat.send_message(prompt)
+        
+        # Return the response
+        return jsonify({
+            "response": response.text,
+            "has_visual_context": image_base64 is not None,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error in contextual chat: {str(e)}")
+        return jsonify({
+            "error": str(e),
+            "response": "I'm sorry, I encountered an error while processing your message.",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+# New route for video stream using multipart response (MJPEG)
+@app.route('/api/camera/stream')
+def video_stream():
+    """
+    Stream video as MJPEG for more efficient viewing
+    """
+    def generate_frames():
+        global last_frame
+        while is_capturing_video and webcam is not None:
+            if last_frame is not None:
+                # Use lower quality JPEG encoding for streaming
+                encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), 50]  # Lower quality for streaming
+                _, buffer = cv2.imencode('.jpg', last_frame, encode_params)
+                frame_bytes = buffer.tobytes()
+                
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            else:
+                # If no frame is available, send a blank frame
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n\r\n')
+            time.sleep(0.04)  # ~25 FPS
+    
+    return Response(generate_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
     # Auto-start appropriate processing mode

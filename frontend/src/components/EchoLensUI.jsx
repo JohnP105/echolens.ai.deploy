@@ -39,11 +39,13 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import VideocamIcon from '@mui/icons-material/Videocam';
 
 // Import the Audio Visualization component
 import AudioVisualization from './AudioVisualization';
 import ChatInterface from './ChatInterface';
 import Dashboard from './Dashboard';
+import MultimodalAnalysis from './MultimodalAnalysis';
 import Header, { PageTitle } from './Header';
 
 // Animated MUI components
@@ -187,6 +189,12 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
             </ListItemIcon>
             <ListItemText primary="Chat" />
           </ListItem>
+          <ListItem button onClick={() => setActiveTab(4)}>
+            <ListItemIcon>
+              <VideocamIcon />
+            </ListItemIcon>
+            <ListItemText primary="Multimodal Analysis" />
+          </ListItem>
         </List>
         <Divider />
         <List>
@@ -242,15 +250,80 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
             <Tabs 
               value={activeTab} 
               onChange={handleTabChange} 
-              variant="fullWidth" 
-              indicatorColor="primary"
-              textColor="primary"
-              centered
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{ 
+                '& .MuiTabs-indicator': {
+                  backgroundColor: 'primary.main',
+                  height: 3,
+                  borderRadius: '3px 3px 0 0'
+                },
+                '& .MuiTab-root': {
+                  minWidth: '120px'
+                }
+              }}
             >
-              <Tab icon={<HomeIcon />} label="Dashboard" />
-              <Tab icon={<HearingIcon />} label="Speech Recognition" />
-              <Tab icon={<SurroundSoundIcon />} label="Spatial Audio" />
-              <Tab icon={<ChatIcon />} label="Chat" />
+              <Tab 
+                label="Dashboard" 
+                icon={<HomeIcon />} 
+                iconPosition="start"
+                sx={{ 
+                  fontSize: '0.9rem', 
+                  textTransform: 'none', 
+                  fontWeight: activeTab === 0 ? 'bold' : 'normal',
+                  opacity: activeTab === 0 ? 1 : 0.7,
+                  transition: 'all 0.2s ease',
+                }} 
+              />
+              <Tab 
+                label="Audio" 
+                icon={<MicIcon />} 
+                iconPosition="start"
+                sx={{ 
+                  fontSize: '0.9rem', 
+                  textTransform: 'none', 
+                  fontWeight: activeTab === 1 ? 'bold' : 'normal',
+                  opacity: activeTab === 1 ? 1 : 0.7,
+                  transition: 'all 0.2s ease',
+                }} 
+              />
+              <Tab 
+                label="Spatial" 
+                icon={<SurroundSoundIcon />}
+                iconPosition="start" 
+                sx={{ 
+                  fontSize: '0.9rem', 
+                  textTransform: 'none', 
+                  fontWeight: activeTab === 2 ? 'bold' : 'normal',
+                  opacity: activeTab === 2 ? 1 : 0.7,
+                  transition: 'all 0.2s ease',
+                }} 
+              />
+              <Tab 
+                label="Chat" 
+                icon={<ChatIcon />} 
+                iconPosition="start"
+                sx={{ 
+                  fontSize: '0.9rem', 
+                  textTransform: 'none', 
+                  fontWeight: activeTab === 3 ? 'bold' : 'normal',
+                  opacity: activeTab === 3 ? 1 : 0.7,
+                  transition: 'all 0.2s ease',
+                }} 
+              />
+              <Tab 
+                label="Multimodal" 
+                icon={<VideocamIcon />} 
+                iconPosition="start"
+                sx={{ 
+                  fontSize: '0.9rem', 
+                  textTransform: 'none', 
+                  fontWeight: activeTab === 4 ? 'bold' : 'normal',
+                  opacity: activeTab === 4 ? 1 : 0.7,
+                  transition: 'all 0.2s ease',
+                }} 
+              />
             </Tabs>
           </Paper>
           
@@ -862,6 +935,109 @@ const EchoLensUI = ({ darkMode, toggleDarkMode, emotionalState, updateEmotionalS
               <ChatInterface 
                 darkMode={darkMode} 
                 emotionalState={emotionalState}
+              />
+            </MotionBox>
+          )}
+          
+          {/* Multimodal Analysis Tab */}
+          {activeTab === 4 && (
+            <MotionBox
+              component={motion.div}
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <MotionPaper 
+                component={motion.div}
+                variants={itemVariants}
+                elevation={0}
+                sx={{ 
+                  p: 4, 
+                  mb: 4, 
+                  borderRadius: 4,
+                  background: 'linear-gradient(120deg, #ff5722 0%, #ff9800 100%)',
+                  color: 'white',
+                  overflow: 'hidden',
+                  position: 'relative'
+                }}
+              >
+                <MotionBox
+                  component={motion.div}
+                  sx={{
+                    position: 'absolute',
+                    top: -100,
+                    right: -100,
+                    width: 300,
+                    height: 300,
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                  }}
+                  animate={{
+                    x: [0, 10, 0],
+                    y: [0, 15, 0],
+                  }}
+                  transition={{
+                    duration: 8,
+                    repeat: Infinity,
+                    repeatType: "reverse"
+                  }}
+                />
+                
+                <Grid container spacing={3} alignItems="center">
+                  <Grid item xs={12} md={8}>
+                    <MotionTypography 
+                      variant="h3" 
+                      gutterBottom 
+                      fontWeight="bold"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                    >
+                      Multimodal Analysis
+                    </MotionTypography>
+                    <MotionTypography 
+                      variant="h5"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5, delay: 0.3 }}
+                    >
+                      Analyze Audio and Video
+                    </MotionTypography>
+                    <MotionTypography 
+                      variant="body1" 
+                      sx={{ mt: 2 }}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5, delay: 0.4 }}
+                    >
+                      Combine audio and video analysis to gain a more comprehensive understanding of your environment.
+                    </MotionTypography>
+                  </Grid>
+                  <Grid item xs={12} md={4} sx={{ textAlign: 'center' }}>
+                    <MotionBox
+                      component={motion.div}
+                      animate={{
+                        scale: [1, 1.05, 1],
+                        transition: { 
+                          duration: 2, 
+                          repeat: Infinity,
+                          repeatType: "reverse" 
+                        }
+                      }}
+                    >
+                      <VideocamIcon sx={{ 
+                        fontSize: 160, 
+                        opacity: 0.9,
+                        filter: 'drop-shadow(0 0 15px rgba(0, 0, 0, 0.3))'
+                      }} />
+                    </MotionBox>
+                  </Grid>
+                </Grid>
+              </MotionPaper>
+              
+              <MultimodalAnalysis 
+                darkMode={darkMode}
               />
             </MotionBox>
           )}
