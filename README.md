@@ -33,8 +33,8 @@ EchoLens.AI is an innovative application designed to assist deaf and hard-of-hea
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/echolens.git
-cd echolens
+git clone https://github.com/yourusername/echolens-ai.git
+cd echolens-ai
 ```
 
 2. Set up the backend

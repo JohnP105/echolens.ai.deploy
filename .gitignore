@@ -215,7 +215,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
-README.md
+
 # React/Frontend
 /frontend/node_modules
 /frontend/.pnp
