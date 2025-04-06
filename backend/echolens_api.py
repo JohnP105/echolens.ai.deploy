@@ -1663,6 +1663,7 @@ def clear_sound_alerts_from_db(user_id="default"):
         logger.error(f"Error clearing sound alerts from database: {str(e)}")
         return 0
 
+# Run the Flask app only if this file is executed directly (not imported)
 if __name__ == '__main__':
     # Initialize database
     db_status = init_database()
@@ -1680,5 +1681,9 @@ if __name__ == '__main__':
         threading.Thread(target=audio_processing_thread, daemon=True).start()
         logger.info("Auto-started microphone processing")
     
+    # Get port from environment variable
+    port = int(os.environ.get("PORT", 5000))
+    logger.info(f"Starting Flask app on port {port}")
+    
     # Run the Flask app
-    app.run(debug=True, host='0.0.0.0', port=5000) 
+    app.run(debug=False, host='0.0.0.0', port=port) 

@@ -1,0 +1,67 @@
+# === Add these imports at the top of echolens_api.py ===
+
+# Check if running in cloud deployment environment
+IS_CLOUD_DEPLOYMENT = os.environ.get("DEPLOYMENT_ENV", "").lower() == "cloud"
+
+# === Modify how audio libraries are imported ===
+
+# Only import audio libraries if not in cloud deployment mode
+if not IS_CLOUD_DEPLOYMENT:
+    try:
+        import sounddevice as sd
+        import queue
+        import speech_recognition as sr
+        from scipy import signal
+        AUDIO_AVAILABLE = True
+        print("Audio processing libraries loaded successfully")
+    except (ImportError, OSError) as e:
+        print(f"WARNING: Could not load audio libraries: {str(e)}")
+        AUDIO_AVAILABLE = False
+else:
+    AUDIO_AVAILABLE = False
+    print("Running in cloud deployment mode - audio processing disabled")
+    # We'll use demo mode for cloud deployment
+    demo_mode = True
+    print("Demo mode automatically enabled for cloud deployment")
+
+# === Modify your audio_processing_thread function ===
+
+def audio_processing_thread():
+    """Main thread for audio processing."""
+    global is_processing_audio, last_restart_time
+    
+    if not AUDIO_AVAILABLE and not demo_mode:
+        logger.warning("Audio processing unavailable and demo mode disabled - cannot start audio thread")
+        return
+    
+    # Rest of your audio processing function...
+
+# === Modify the main initialization code at the bottom of the file ===
+
+if __name__ == '__main__':
+    # Initialize database
+    db_status = init_database()
+    logger.info(f"Database initialization status: {'Success' if db_status else 'Failed'}")
+    
+    # Auto-start appropriate processing mode
+    last_restart_time = time.time()
+    
+    if IS_CLOUD_DEPLOYMENT:
+        # Force demo mode in cloud deployment
+        demo_mode = True
+        logger.info("Running in cloud deployment mode with demo mode enabled")
+    
+    if demo_mode:
+        # Start demo processing
+        threading.Thread(target=demo_processing_thread, daemon=True).start()
+        logger.info("Auto-started demo processing")
+    elif AUDIO_AVAILABLE:
+        # Start real audio processing
+        threading.Thread(target=audio_processing_thread, daemon=True).start()
+        logger.info("Auto-started microphone processing")
+    else:
+        logger.warning("Audio processing unavailable - running in limited mode")
+    
+    # Run the Flask app
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port) 

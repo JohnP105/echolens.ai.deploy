@@ -29,6 +29,7 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import API from '../utils/API';
 import dataStorage, { saveData, loadData, exportToJsonFile, clearData } from '../utils/dataStorage';
+import { API_BASE_URL } from '../config';
 
 // Use STORAGE_KEYS from the imported module
 const { STORAGE_KEYS } = dataStorage;
@@ -171,16 +172,27 @@ const ChatInterface = ({ darkMode, emotionalState }) => {
           : msg
       ));
       
-      // Send to chat API with emotional context
-      const response = await API.chat(input.trim(), {
-        emotion: emotionAnalysis.emotion || 'neutral',
-        intensity: 'medium'
+      // Call the backend API for response
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: input.trim(),
+          context: {
+            emotion: emotionAnalysis.emotion || 'neutral',
+            intensity: 'medium'
+          }
+        })
       });
+      
+      const data = await response.json();
       
       // Add bot response
       setMessages(prev => [...prev, {
         id: prev.length + 1,
-        text: response.response,
+        text: data.response,
         sender: 'bot',
         emotion: 'neutral', // Bot responses don't have emotions by default
         timestamp: new Date()

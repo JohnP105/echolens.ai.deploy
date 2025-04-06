@@ -9,7 +9,8 @@ export const DEV_CONFIG = {
 };
 
 // API endpoint configurations
-export const API_BASE_URL = 'http://localhost:5000/api';
+// Use environment variable in production, fallback to localhost for development
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 export const PREFERENCES_API_URL = `${API_BASE_URL}/preferences`;
 
 // Audio visualization settings
