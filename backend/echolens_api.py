@@ -40,14 +40,19 @@ import random  # For demo/test data generation
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Set to DEBUG to capture all database operations
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('echolens.log')
+        logging.FileHandler(log_file_path)
     ]
 )
 logger = logging.getLogger(__name__)
+logger.info(f"Logging to file: {log_file_path}")
+logger.info(f"Log file cleared at application startup")
+
+# Ensure database module's logger is also set to DEBUG level
+logging.getLogger('database.dbclient').setLevel(logging.DEBUG)
 
 # Initialize Flask app
 app = Flask(__name__)
